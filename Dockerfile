@@ -20,6 +20,6 @@ RUN cd frontend && npm install && npm run build
 COPY living_map/ living_map/
 COPY living_map.db .
 
-ENV PORT=8000
+EXPOSE 8000
 
-CMD ["sh", "-c", "uvicorn living_map.app:app --host 0.0.0.0 --port $PORT --log-level info"]
+CMD ["uvicorn", "living_map.app:app", "--host", "0.0.0.0", "--port", "8000", "--log-level", "info"]
