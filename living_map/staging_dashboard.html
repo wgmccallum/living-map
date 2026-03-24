@@ -1,0 +1,2760 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Living Map — Staging Dashboard</title>
+<style>
+  :root {
+    --bg: #f8f9fa; --surface: #fff; --border: #dee2e6;
+    --primary: #2563eb; --primary-hover: #1d4ed8;
+    --danger: #dc2626; --success: #16a34a; --warning: #d97706;
+    --text: #1f2937; --text-muted: #6b7280;
+    --radius: 6px; --shadow: 0 1px 3px rgba(0,0,0,.1);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; }
+
+  /* Layout */
+  .header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 12px 24px; display: flex; align-items: center; gap: 16px; }
+  .header h1 { font-size: 18px; font-weight: 600; }
+  .header .subtitle { color: var(--text-muted); font-size: 14px; }
+  .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
+
+  /* Panels */
+  .panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); margin-bottom: 20px; }
+  .panel-header { padding: 14px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+  .panel-header h2 { font-size: 15px; font-weight: 600; }
+  .panel-body { padding: 18px; }
+
+  /* Forms */
+  .form-row { display: flex; gap: 12px; align-items: end; margin-bottom: 12px; flex-wrap: wrap; }
+  .form-group { display: flex; flex-direction: column; gap: 4px; }
+  .form-group label { font-size: 12px; font-weight: 500; color: var(--text-muted); text-transform: uppercase; letter-spacing: .5px; }
+  input[type="text"], select, textarea { padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius); font-size: 14px; font-family: inherit; }
+  input[type="text"]:focus, select:focus, textarea:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 2px rgba(37,99,235,.15); }
+  textarea { resize: vertical; min-height: 60px; }
+
+  /* Buttons */
+  .btn { padding: 8px 16px; border-radius: var(--radius); font-size: 13px; font-weight: 500; cursor: pointer; border: 1px solid transparent; transition: all .15s; }
+  .btn-primary { background: var(--primary); color: #fff; }
+  .btn-primary:hover { background: var(--primary-hover); }
+  .btn-sm { padding: 4px 10px; font-size: 12px; }
+  .btn-danger { background: var(--danger); color: #fff; }
+  .btn-success { background: var(--success); color: #fff; }
+  .btn-warning { background: var(--warning); color: #fff; }
+  .btn-outline { background: transparent; border-color: var(--border); color: var(--text); }
+  .btn-outline:hover { background: var(--bg); }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+
+  /* Tables */
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th { text-align: left; padding: 8px 12px; background: var(--bg); font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: .5px; border-bottom: 1px solid var(--border); }
+  td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr:hover td { background: #f1f5f9; }
+  tr.selected td { background: #eff6ff; }
+
+  /* Status badges */
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .3px; }
+  .badge-proposed { background: #fef3c7; color: #92400e; }
+  .badge-grain_approved { background: #dbeafe; color: #1e40af; }
+  .badge-formulated { background: #d1fae5; color: #065f46; }
+  .badge-edges_confirmed { background: #e0e7ff; color: #3730a3; }
+  .badge-schema_assigned { background: #c7d2fe; color: #312e81; }
+  .badge-stale { background: #fee2e2; color: #991b1b; }
+  .badge-flagged { background: #fecaca; color: #b91c1c; }
+  .badge-active { background: #d1fae5; color: #065f46; }
+  .badge-tier2_review { background: #dbeafe; color: #1e40af; }
+  .badge-committed { background: #c7d2fe; color: #312e81; }
+  .badge-abandoned { background: #e5e7eb; color: #6b7280; }
+  .badge-confirmed { background: #d1fae5; color: #065f46; }
+  .badge-rejected { background: #fee2e2; color: #991b1b; }
+
+  /* Stats */
+  .stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 10px; }
+  .stat-card { text-align: center; padding: 10px; background: var(--bg); border-radius: var(--radius); }
+  .stat-card .value { font-size: 24px; font-weight: 700; color: var(--primary); }
+  .stat-card .label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; }
+
+  /* Upload area */
+  .upload-area { border: 2px dashed var(--border); border-radius: var(--radius); padding: 24px; text-align: center; cursor: pointer; transition: all .15s; }
+  .upload-area:hover, .upload-area.dragover { border-color: var(--primary); background: #eff6ff; }
+  .upload-area p { color: var(--text-muted); font-size: 14px; margin-top: 8px; }
+  .upload-area .formats { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+
+  /* KC detail */
+  .kc-detail { padding: 14px; border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 10px; }
+  .kc-detail .kc-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .kc-detail .kc-id { font-family: monospace; font-size: 13px; font-weight: 600; }
+  .kc-detail .source-text { background: #fffbeb; padding: 8px 10px; border-radius: 4px; font-size: 13px; margin: 8px 0; border-left: 3px solid var(--warning); }
+  .kc-detail .kc-desc { font-size: 14px; margin: 6px 0; }
+  .kc-detail .meta { font-size: 12px; color: var(--text-muted); }
+  .kc-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+
+  /* Tabs */
+  .tabs { display: flex; gap: 0; border-bottom: 2px solid var(--border); margin-bottom: 16px; }
+  .tab { padding: 8px 16px; font-size: 14px; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; color: var(--text-muted); }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--primary); border-bottom-color: var(--primary); font-weight: 500; }
+
+  .hidden { display: none; }
+
+  /* Toast */
+  .toast { position: fixed; bottom: 20px; right: 20px; padding: 12px 20px; border-radius: var(--radius); color: #fff; font-size: 14px; z-index: 1000; animation: fadeIn .2s; }
+  .toast-success { background: var(--success); }
+  .toast-error { background: var(--danger); }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* Edge list */
+  .edge-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-bottom: 1px solid var(--border); font-size: 13px; flex-wrap: wrap; }
+  .edge-item .arrow { color: var(--text-muted); }
+  .edge-item .reasoning { color: var(--text-muted); font-style: italic; flex: 1; min-width: 100px; }
+  /* Graph node hover tooltip */
+  #graph-tooltip { display: none; position: absolute; background: #1e293b; color: #f1f5f9; padding: 10px 14px; border-radius: 8px; font-size: 13px; line-height: 1.5; max-width: 360px; z-index: 200; pointer-events: none; box-shadow: 0 4px 12px rgba(0,0,0,0.3); white-space: pre-wrap; }
+  #graph-tooltip .tooltip-id { font-family: monospace; font-size: 11px; color: #94a3b8; margin-bottom: 4px; }
+  #graph-tooltip .tooltip-desc { font-size: 13px; }
+
+  .kc-ref { position: relative; cursor: help; border-bottom: 1px dotted #999; }
+  .kc-ref .kc-tooltip { display: none; position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%); background: #333; color: white; padding: 8px 12px; border-radius: 6px; font-size: 12px; font-weight: normal; white-space: pre-wrap; max-width: 350px; width: max-content; z-index: 100; line-height: 1.4; box-shadow: 0 2px 8px rgba(0,0,0,0.2); pointer-events: none; }
+  .kc-ref .kc-tooltip::after { content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%); border: 5px solid transparent; border-top-color: #333; }
+  .kc-ref:hover .kc-tooltip { display: block; }
+
+  /* Graph tab */
+  #cy-container { width: 100%; height: 600px; border: 1px solid var(--border); border-radius: var(--radius); background: #fafbfc; }
+  .graph-toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+  .graph-legend { display: flex; gap: 12px; align-items: center; font-size: 12px; color: var(--text-muted); margin-left: auto; }
+  .graph-legend .swatch { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 4px; vertical-align: middle; }
+  #graph-info-panel { margin-top: 12px; padding: 14px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg); font-size: 13px; }
+  #graph-info-panel .info-title { font-weight: 600; margin-bottom: 6px; }
+
+  /* Conversation Side Panel */
+  .conv-panel {
+    position: fixed; top: 0; right: -440px;
+    width: 420px; height: 100vh;
+    background: var(--surface);
+    border-left: 1px solid var(--border);
+    box-shadow: -4px 0 16px rgba(0,0,0,.1);
+    z-index: 500;
+    display: flex; flex-direction: column;
+    transition: right .25s ease;
+  }
+  .conv-panel.open { right: 0; }
+  .conv-panel-header {
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .conv-panel-header h3 { font-size: 14px; font-weight: 600; margin: 0; }
+  .conv-panel-context {
+    padding: 12px 18px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg);
+    font-size: 13px;
+    max-height: 160px;
+    overflow-y: auto;
+  }
+  .conv-panel-context .context-source {
+    background: #fffbeb; padding: 6px 8px; border-radius: 4px;
+    border-left: 3px solid var(--warning); margin-top: 6px;
+    font-size: 12px; white-space: pre-wrap;
+  }
+  .conv-messages {
+    flex: 1; overflow-y: auto; padding: 14px 18px;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .conv-msg {
+    max-width: 88%; padding: 10px 14px; border-radius: 12px;
+    font-size: 13px; line-height: 1.5; white-space: pre-wrap;
+  }
+  .conv-msg.assistant { align-self: flex-start; background: var(--bg); border: 1px solid var(--border); }
+  .conv-msg.user { align-self: flex-end; background: #2563eb; color: white; }
+  .conv-msg .msg-time { font-size: 10px; color: var(--text-muted); margin-top: 4px; }
+  .conv-msg.user .msg-time { color: rgba(255,255,255,.65); }
+  .conv-input-area {
+    padding: 12px 18px; border-top: 1px solid var(--border);
+    display: flex; gap: 8px; align-items: flex-end;
+  }
+  .conv-input-area textarea {
+    flex: 1; resize: none; min-height: 44px; max-height: 120px;
+    padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius);
+    font-size: 13px; font-family: inherit;
+  }
+  .conv-typing { padding: 8px 14px; font-size: 12px; color: var(--text-muted); font-style: italic; }
+  .chat-badge {
+    display: inline-block; width: 8px; height: 8px;
+    background: var(--primary); border-radius: 50%;
+    margin-left: 4px; vertical-align: middle;
+  }
+  body.conv-open .container { margin-right: 420px; transition: margin-right .25s ease; }
+  @media (max-width: 900px) { body.conv-open .container { margin-right: 0; } }
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.28.1/cytoscape.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dagre/0.8.5/dagre.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/cytoscape-dagre@2.5.0/cytoscape-dagre.min.js"></script>
+</head>
+<body>
+
+<div class="header">
+  <h1>Living Map — Staging Dashboard</h1>
+  <span class="subtitle">Moderated Bulk Add Pipeline</span>
+  <span style="flex:1"></span>
+  <a href="/" class="btn btn-outline btn-sm">← Main App</a>
+</div>
+
+<div class="container">
+  <!-- Session List / Create -->
+  <div id="sessions-view">
+    <div class="panel">
+      <div class="panel-header">
+        <h2>Staging Sessions</h2>
+        <button class="btn btn-primary btn-sm" onclick="showCreateSession()">+ New Session</button>
+      </div>
+      <div class="panel-body">
+        <div id="create-session-form" class="hidden" style="margin-bottom:16px; padding:14px; background:var(--bg); border-radius:var(--radius);">
+          <div class="form-row">
+            <div class="form-group" style="flex:1">
+              <label>Session ID</label>
+              <input type="text" id="new-session-id" placeholder="e.g. fractions-2026-03">
+            </div>
+            <div class="form-group" style="flex:1">
+              <label>Topic Name</label>
+              <input type="text" id="new-session-topic" placeholder="e.g. Fractions">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group" style="flex:1">
+              <label>Description</label>
+              <input type="text" id="new-session-desc" placeholder="Optional description">
+            </div>
+            <button class="btn btn-primary" onclick="createSession()">Create</button>
+            <button class="btn btn-outline" onclick="hideCreateSession()">Cancel</button>
+          </div>
+        </div>
+        <table id="sessions-table">
+          <thead><tr><th>Session ID</th><th>Topic</th><th>Status</th><th>KCs</th><th>Edges</th><th>Actions</th></tr></thead>
+          <tbody id="sessions-tbody"></tbody>
+        </table>
+        <p id="no-sessions" class="hidden" style="text-align:center; color:var(--text-muted); padding:20px;">No staging sessions yet. Create one to get started.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Session Detail -->
+  <div id="session-detail-view" class="hidden">
+    <div style="margin-bottom:16px">
+      <button class="btn btn-outline btn-sm" onclick="showSessionsList()">← All Sessions</button>
+      <span id="session-title" style="font-size:18px; font-weight:600; margin-left:12px;"></span>
+      <span id="session-status-badge" style="margin-left:8px;"></span>
+    </div>
+
+    <!-- AI Status Banner -->
+    <div id="ai-banner" class="panel" style="border-left:3px solid var(--warning);">
+      <div class="panel-body" style="padding:10px 18px; display:flex; align-items:center; gap:12px;">
+        <span id="ai-status-icon">⏳</span>
+        <span id="ai-status-text" style="font-size:14px;">Checking AI availability...</span>
+      </div>
+    </div>
+
+    <!-- Statistics -->
+    <div class="panel">
+      <div class="panel-header"><h2>Session Overview</h2></div>
+      <div class="panel-body">
+        <div id="session-stats" class="stats-grid"></div>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <div class="tab active" data-tab="ingest" onclick="switchTab('ingest')">Ingest</div>
+      <div class="tab" data-tab="kcs" onclick="switchTab('kcs')">Staged KCs</div>
+      <div class="tab" data-tab="edges" onclick="switchTab('edges')">Edges</div>
+      <div class="tab" data-tab="schemas" onclick="switchTab('schemas')">Schemas</div>
+      <div class="tab" data-tab="graph" onclick="switchTab('graph')">Graph</div>
+    </div>
+
+    <!-- Tab: Ingest -->
+    <div id="tab-ingest" class="tab-content">
+      <div class="panel">
+        <div class="panel-header"><h2>Upload Source Document</h2></div>
+        <div class="panel-body">
+          <div class="upload-area" id="upload-area" onclick="document.getElementById('file-input').click()">
+            <svg width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" style="color:var(--text-muted)"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/></svg>
+            <p>Click to upload or drag and drop</p>
+            <div class="formats">.tex · .xlsx · .docx · .txt</div>
+          </div>
+          <input type="file" id="file-input" accept=".tex,.xlsx,.docx,.txt,.text" style="display:none" multiple onchange="handleFileUpload(this)">
+          <div id="upload-progress" class="hidden" style="margin-top:12px; text-align:center; color:var(--text-muted);">
+            Parsing document...
+          </div>
+        </div>
+      </div>
+
+      <!-- Manifest results -->
+      <div id="manifest-panel" class="panel hidden">
+        <div class="panel-header">
+          <h2>Ingest Results</h2>
+          <span id="manifest-summary" style="font-size:13px; color:var(--text-muted);"></span>
+        </div>
+        <div class="panel-body">
+          <div id="manifest-items"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab: Staged KCs -->
+    <div id="tab-kcs" class="tab-content hidden">
+      <!-- AI Actions Bar -->
+      <div class="panel" id="ai-actions-panel" style="border-left:3px solid var(--primary);">
+        <div class="panel-body" style="padding:12px 18px;">
+          <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+            <strong style="font-size:13px; margin-right:8px;">AI Actions:</strong>
+            <button class="btn btn-sm btn-primary" onclick="aiGrainReview()" id="btn-ai-grain">
+              Analyze Grain Size (proposed)
+            </button>
+            <button class="btn btn-sm btn-primary" onclick="aiFormulate()" id="btn-ai-formulate">
+              Formulate KCs (grain approved)
+            </button>
+            <button class="btn btn-sm btn-primary" onclick="aiPrerequisites()" id="btn-ai-prereqs">
+              Propose Prerequisites (formulated)
+            </button>
+            <button class="btn btn-sm btn-primary" onclick="aiCorrectnessCheck()" id="btn-ai-correct">
+              Correctness Check
+            </button>
+            <span id="ai-working" class="hidden" style="font-size:13px; color:var(--text-muted);">⏳ AI is thinking...</span>
+          </div>
+        </div>
+      </div>
+
+      <div id="staged-kcs-panel" class="panel">
+        <div class="panel-header">
+          <h2>Staged KCs</h2>
+          <div style="display:flex; gap:8px; align-items:center;">
+            <label style="font-size:12px; color:var(--text-muted);">Filter:</label>
+            <select id="kc-status-filter" onchange="loadStagedKCs()" style="font-size:13px;">
+              <option value="">All Statuses</option>
+              <option value="proposed">Proposed</option>
+              <option value="grain_approved">Grain Approved</option>
+              <option value="formulated">Formulated</option>
+              <option value="edges_confirmed">Edges Confirmed</option>
+              <option value="schema_assigned">Schema Assigned</option>
+              <option value="stale">Stale</option>
+              <option value="flagged">Flagged</option>
+            </select>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div id="kc-list"></div>
+          <p id="no-kcs" class="hidden" style="text-align:center; color:var(--text-muted); padding:20px;">No staged KCs yet. Upload a document to get started.</p>
+        </div>
+      </div>
+
+      <!-- AI Results Panel (dynamically repositioned above or below Staged KCs) -->
+      <div id="ai-results-panel" class="panel hidden" style="border-left:3px solid var(--success);">
+        <div class="panel-header">
+          <h2 id="ai-results-title">AI Analysis</h2>
+          <button class="btn btn-sm btn-outline" onclick="dismissAIResults()">Dismiss</button>
+        </div>
+        <div class="panel-body">
+          <div id="ai-results-notice" class="hidden" style="margin-bottom:12px;padding:8px 12px;background:#eff6ff;border-radius:6px;font-size:13px;color:#1e40af;">
+            You can also edit any KC manually in the Staged KCs area below.
+          </div>
+          <div id="ai-results-content"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab: Edges -->
+    <div id="tab-edges" class="tab-content hidden">
+      <div class="panel">
+        <div class="panel-header">
+          <h2>Staged Edges</h2>
+          <div style="display:flex; gap:8px;">
+            <select id="edge-status-filter" onchange="loadStagedEdges()" style="font-size:13px;">
+              <option value="">All</option>
+              <option value="proposed">Proposed</option>
+              <option value="confirmed">Confirmed</option>
+              <option value="rejected">Rejected</option>
+            </select>
+            <button class="btn btn-sm btn-success" onclick="batchConfirmEdges()" id="btn-confirm-all-edges">Confirm All Proposed</button>
+            <button class="btn btn-sm btn-primary" onclick="validateEdges()">Validate Acyclicity</button>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div id="edge-list"></div>
+          <div id="edge-validation" class="hidden" style="margin-top:12px; padding:12px; border-radius:var(--radius);"></div>
+          <p id="no-edges" class="hidden" style="text-align:center; color:var(--text-muted); padding:20px;">No staged edges yet.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab: Schemas -->
+    <div id="tab-schemas" class="tab-content hidden">
+      <!-- Schema Actions Bar -->
+      <div class="panel" style="border-left:3px solid var(--primary);">
+        <div class="panel-body" style="padding:12px 18px;">
+          <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+            <strong style="font-size:13px; margin-right:8px;">Schema Actions:</strong>
+            <button class="btn btn-sm btn-primary" onclick="aiProposeSchemas()" id="btn-ai-schemas">
+              Propose Schemas
+            </button>
+            <button class="btn btn-sm btn-outline" onclick="showCreateSchemaForm()">+ Create Schema Manually</button>
+            <span id="schema-ai-working" class="hidden" style="font-size:13px; color:var(--text-muted);">&#9203; AI is thinking...</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Manual schema creation form (hidden by default) -->
+      <div id="create-schema-form" class="panel hidden">
+        <div class="panel-header">
+          <h2>Create Schema</h2>
+          <button class="btn btn-sm btn-outline" onclick="hideCreateSchemaForm()">Cancel</button>
+        </div>
+        <div class="panel-body">
+          <div class="form-row">
+            <div class="form-group" style="flex:1;">
+              <label>Schema ID</label>
+              <input type="text" id="manual-schema-id" placeholder="e.g. counting-by-ones">
+            </div>
+            <div class="form-group" style="flex:2;">
+              <label>Name</label>
+              <input type="text" id="manual-schema-name" placeholder="e.g. Counting by Ones">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group" style="flex:1;">
+              <label>Description (optional)</label>
+              <textarea id="manual-schema-desc" placeholder="What this schema covers..."></textarea>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Parent Schema (optional)</label>
+              <select id="manual-schema-parent"><option value="">None</option></select>
+            </div>
+            <button class="btn btn-primary" onclick="createSchemaManually()">Create Schema</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Schema proposals review area (hidden until AI runs) -->
+      <div id="schema-proposals-panel" class="panel hidden" style="border-left:3px solid var(--success);">
+        <div class="panel-header">
+          <h2 id="schema-proposals-title">AI Schema Proposals</h2>
+          <button class="btn btn-sm btn-outline" onclick="dismissSchemaProposals()">Dismiss</button>
+        </div>
+        <div class="panel-body">
+          <div id="schema-proposals-content"></div>
+        </div>
+      </div>
+
+      <!-- Confirmed schemas list -->
+      <div class="panel">
+        <div class="panel-header">
+          <h2>Staged Schemas</h2>
+          <div style="display:flex; gap:8px;">
+            <button class="btn btn-sm btn-primary" onclick="validateSchemas()">Validate</button>
+            <button class="btn btn-sm btn-success" onclick="confirmAllSchemas()" id="btn-confirm-all-schemas">Confirm All &amp; Assign KCs</button>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div id="schema-list"></div>
+          <div id="schema-validation" class="hidden" style="margin-top:12px; padding:12px; border-radius:var(--radius);"></div>
+          <p id="no-schemas" class="hidden" style="text-align:center; color:var(--text-muted); padding:20px;">No staged schemas yet. Use "Propose Schemas" or create one manually.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab: Graph -->
+    <div id="tab-graph" class="tab-content hidden">
+      <div class="panel">
+        <div class="panel-header">
+          <h2>DAG Visualization</h2>
+        </div>
+        <div class="panel-body">
+          <div class="graph-toolbar">
+            <button class="btn btn-sm btn-primary" onclick="loadGraph()">Refresh Graph</button>
+            <button class="btn btn-sm btn-outline" onclick="graphFitAll()">Fit All</button>
+            <select id="graph-status-filter" onchange="loadGraph()" style="font-size:13px;">
+              <option value="">All Non-Stale KCs</option>
+              <option value="proposed">Proposed Only</option>
+              <option value="grain_approved">Grain Approved+</option>
+              <option value="formulated">Formulated+</option>
+              <option value="edges_confirmed">Edges Confirmed+</option>
+            </select>
+            <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer;">
+              <input type="checkbox" id="graph-schema-toggle" onchange="loadGraph()">
+              Show Schemas
+            </label>
+            <div class="graph-legend">
+              <span><span class="swatch" style="background:#fbbf24"></span>Proposed</span>
+              <span><span class="swatch" style="background:#60a5fa"></span>Grain OK</span>
+              <span><span class="swatch" style="background:#34d399"></span>Formulated</span>
+              <span><span class="swatch" style="background:#818cf8"></span>Edges OK</span>
+              <span><span class="swatch" style="background:#a78bfa"></span>Schema OK</span>
+            </div>
+          </div>
+          <div style="position:relative;">
+            <div id="cy-container"></div>
+            <div id="graph-tooltip"></div>
+          </div>
+          <div id="graph-info-panel" class="hidden">
+            <div class="info-title" id="graph-info-title"></div>
+            <div id="graph-info-body"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = '';  // Same origin
+let currentSessionId = null;
+let correctnessCheckDone = false;
+
+// ═══════════════════════════════════════════════════════
+// API helpers
+// ═══════════════════════════════════════════════════════
+
+async function api(method, path, body = null) {
+  const opts = { method, headers: {} };
+  if (body && !(body instanceof FormData)) {
+    opts.headers['Content-Type'] = 'application/json';
+    opts.body = JSON.stringify(body);
+  } else if (body instanceof FormData) {
+    opts.body = body;
+  }
+  const resp = await fetch(API + path, opts);
+  if (resp.status === 204) return null;
+  const data = await resp.json();
+  if (!resp.ok) throw new Error(data.detail || data.error || JSON.stringify(data));
+  return data;
+}
+
+function toast(msg, type = 'success') {
+  const el = document.createElement('div');
+  el.className = `toast toast-${type}`;
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 3000);
+}
+
+function badge(status) {
+  return `<span class="badge badge-${status}">${status.replace('_', ' ')}</span>`;
+}
+
+// ═══════════════════════════════════════════════════════
+// Sessions
+// ═══════════════════════════════════════════════════════
+
+async function loadSessions() {
+  try {
+    const sessions = await api('GET', '/api/staging');
+    const tbody = document.getElementById('sessions-tbody');
+    const noSessions = document.getElementById('no-sessions');
+
+    if (sessions.length === 0) {
+      tbody.innerHTML = '';
+      noSessions.classList.remove('hidden');
+      return;
+    }
+    noSessions.classList.add('hidden');
+
+    tbody.innerHTML = sessions.map(s => {
+      const totalKCs = s.statistics?.total_kcs || 0;
+      const totalEdges = Object.values(s.statistics?.edges || {}).reduce((a, b) => a + b, 0);
+      return `<tr>
+        <td><a href="#" onclick="openSession('${s.id}'); return false;" style="color:var(--primary); font-weight:500;">${s.id}</a></td>
+        <td>${s.topic_name}</td>
+        <td>${badge(s.status)}</td>
+        <td>${totalKCs}</td>
+        <td>${totalEdges}</td>
+        <td>
+          <button class="btn btn-outline btn-sm" onclick="openSession('${s.id}')">Open</button>
+          <button class="btn btn-sm" onclick="deleteSession('${s.id}')" style="color:var(--danger);border-color:var(--danger);background:transparent;margin-left:4px;" title="Delete session and all its data">Delete</button>
+        </td>
+      </tr>`;
+    }).join('');
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
+async function deleteSession(sessionId) {
+  if (!confirm(`Delete session "${sessionId}" and all its KCs, edges, and schemas? This cannot be undone.`)) return;
+  try {
+    await api('DELETE', `/api/staging/${sessionId}?force=true`);
+    toast(`Session ${sessionId} deleted`);
+    if (currentSessionId === sessionId) {
+      currentSessionId = null;
+      document.getElementById('session-workspace').classList.add('hidden');
+    }
+    loadSessions();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+function showCreateSession() {
+  document.getElementById('create-session-form').classList.remove('hidden');
+}
+function hideCreateSession() {
+  document.getElementById('create-session-form').classList.add('hidden');
+}
+
+async function createSession() {
+  const id = document.getElementById('new-session-id').value.trim();
+  const topic = document.getElementById('new-session-topic').value.trim();
+  const desc = document.getElementById('new-session-desc').value.trim();
+  if (!id || !topic) { toast('Session ID and Topic Name are required', 'error'); return; }
+  try {
+    await api('POST', '/api/staging', { id, topic_name: topic, description: desc || null });
+    toast('Session created');
+    hideCreateSession();
+    document.getElementById('new-session-id').value = '';
+    document.getElementById('new-session-topic').value = '';
+    document.getElementById('new-session-desc').value = '';
+    loadSessions();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function openSession(sessionId) {
+  currentSessionId = sessionId;
+  document.getElementById('sessions-view').classList.add('hidden');
+  document.getElementById('session-detail-view').classList.remove('hidden');
+  // Clear stale state from any previous session
+  document.getElementById('ai-results-panel').classList.add('hidden');
+  document.getElementById('ai-results-content').innerHTML = '';
+  correctnessCheckDone = false;
+  window._manuallyEditedKCs = new Set();
+  closeConversation();
+  await refreshSession();
+  checkAIStatus();
+  loadConversationBadges();
+  switchTab('ingest');
+}
+
+function showSessionsList() {
+  currentSessionId = null;
+  document.getElementById('session-detail-view').classList.add('hidden');
+  document.getElementById('sessions-view').classList.remove('hidden');
+  loadSessions();
+}
+
+async function refreshSession() {
+  if (!currentSessionId) return;
+  const s = await api('GET', `/api/staging/${currentSessionId}`);
+  document.getElementById('session-title').textContent = `${s.topic_name} (${s.id})`;
+  document.getElementById('session-status-badge').innerHTML = badge(s.status);
+
+  const stats = s.statistics || {};
+  const byStage = stats.by_stage || {};
+  const edges = stats.edges || {};
+  const schemas = stats.schemas || {};
+
+  // Cumulative counts: each stage includes KCs that have progressed past it
+  const stale = byStage.stale || 0;
+  const flagged = byStage.flagged || 0;
+  const proposed = byStage.proposed || 0;
+  const grainOk = byStage.grain_approved || 0;
+  const formulated = byStage.formulated || 0;
+  const edgesOk = byStage.edges_confirmed || 0;
+  const schemaOk = byStage.schema_assigned || 0;
+  const activeKCs = stats.total_kcs - stale - flagged;
+  const passedGrain = grainOk + formulated + edgesOk + schemaOk;
+  const passedFormulate = formulated + edgesOk + schemaOk;
+  const totalEdgeCount = Object.values(edges).reduce((a, b) => a + b, 0);
+
+  document.getElementById('session-stats').innerHTML = `
+    <div class="stat-card"><div class="value">${activeKCs}</div><div class="label">Active KCs</div></div>
+    <div class="stat-card"><div class="value">${proposed}</div><div class="label">Proposed</div></div>
+    <div class="stat-card"><div class="value">${passedGrain}${grainOk > 0 ? ` <small style="color:var(--text-muted);font-size:11px;font-weight:400">(${grainOk} need formulation)</small>` : ''}</div><div class="label">Grain OK</div></div>
+    <div class="stat-card"><div class="value">${passedFormulate}${formulated > 0 ? ` <small style="color:var(--text-muted);font-size:11px;font-weight:400">(${formulated} need edges)</small>` : ''}</div><div class="label">Formulated</div></div>
+    <div class="stat-card"><div class="value">${totalEdgeCount}${edges.confirmed ? ` <small style="color:var(--text-muted);font-size:11px;font-weight:400">(${edges.confirmed} confirmed)</small>` : ''}</div><div class="label">Edges</div></div>
+    <div class="stat-card"><div class="value">${(schemas.confirmed || 0) + (schemas.proposed || 0)}</div><div class="label">Schemas</div></div>
+    ${stale > 0 ? `<div class="stat-card"><div class="value" style="color:var(--text-muted)">${stale}</div><div class="label">Stale</div></div>` : ''}
+    ${flagged > 0 ? `<div class="stat-card"><div class="value" style="color:var(--warning)">${flagged}</div><div class="label">Flagged</div></div>` : ''}
+  `;
+
+  // Update AI action button states based on pipeline progress
+  updateAIButton('btn-ai-grain', proposed > 0 ? 'ready' : (passedGrain > 0 ? 'done' : 'waiting'),
+    proposed > 0 ? `1. Analyze Grain Size (${proposed} proposed)` : (passedGrain > 0 ? '1. Grain Size ✓' : '1. Analyze Grain Size'));
+  updateAIButton('btn-ai-formulate', grainOk > 0 ? 'ready' : (passedFormulate > 0 ? 'done' : 'waiting'),
+    grainOk > 0 ? `2. Formulate KCs (${grainOk} ready)` : (passedFormulate > 0 ? '2. Formulate ✓' : '2. Formulate KCs'));
+  updateAIButton('btn-ai-prereqs', formulated > 0 ? 'ready' : (totalEdgeCount > 0 ? 'done' : 'waiting'),
+    formulated > 0 ? `3. Propose Prerequisites (${formulated} KCs)` : (totalEdgeCount > 0 ? '3. Prerequisites ✓' : '3. Propose Prerequisites'));
+  updateAIButton('btn-ai-correct', correctnessCheckDone ? 'done' : (activeKCs > 0 ? 'ready' : 'waiting'),
+    correctnessCheckDone ? '4. Correctness ✓' : '4. Correctness Check');
+
+  // Update schema button state (lives in Schemas tab, not AI toolbar)
+  const schemaCount = (schemas.confirmed || 0) + (schemas.proposed || 0);
+  updateAIButton('btn-ai-schemas', edgesOk > 0 ? 'ready' : (schemaCount > 0 ? 'done' : 'waiting'),
+    edgesOk > 0 ? `Propose Schemas (${edgesOk} KCs)` : (schemaCount > 0 ? 'Schemas ✓' : 'Propose Schemas'));
+}
+
+function updateAIButton(id, state, label) {
+  const btn = document.getElementById(id);
+  if (!btn) return;
+  btn.textContent = label;
+  btn.className = 'btn btn-sm';
+  if (state === 'done') {
+    btn.classList.add('btn-outline');
+    btn.style.cssText = 'color:var(--success);border-color:var(--success);background:transparent;';
+  } else if (state === 'ready') {
+    btn.classList.add('btn-primary');
+    btn.style.cssText = '';
+  } else {
+    btn.classList.add('btn-outline');
+    btn.style.cssText = 'color:var(--text-muted);border-color:#ddd;background:transparent;';
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// Tabs
+// ═══════════════════════════════════════════════════════
+
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+  document.querySelectorAll('.tab-content').forEach(tc => tc.classList.add('hidden'));
+  document.getElementById(`tab-${tab}`).classList.remove('hidden');
+
+  if (tab === 'kcs') loadStagedKCs();
+  if (tab === 'edges') loadStagedEdges();
+  if (tab === 'schemas') loadStagedSchemas();
+  if (tab === 'graph') loadGraph();
+}
+
+// ═══════════════════════════════════════════════════════
+// File Upload / Ingest
+// ═══════════════════════════════════════════════════════
+
+const uploadArea = document.getElementById('upload-area');
+uploadArea.addEventListener('dragover', e => { e.preventDefault(); uploadArea.classList.add('dragover'); });
+uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('dragover'));
+uploadArea.addEventListener('drop', e => {
+  e.preventDefault();
+  uploadArea.classList.remove('dragover');
+  if (e.dataTransfer.files.length) ingestFiles(Array.from(e.dataTransfer.files));
+});
+
+function handleFileUpload(input) {
+  if (input.files.length) ingestFiles(Array.from(input.files));
+  input.value = '';
+}
+
+async function ingestFiles(files) {
+  if (!currentSessionId || !files.length) return;
+  const progress = document.getElementById('upload-progress');
+  progress.classList.remove('hidden');
+
+  let totalChunks = 0;
+  let totalKCs = 0;
+  let allManifestItems = [];
+  let filesProcessed = 0;
+
+  for (const file of files) {
+    filesProcessed++;
+    progress.textContent = `Parsing file ${filesProcessed} of ${files.length}: ${file.name}...`;
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const result = await api('POST', `/api/staging/${currentSessionId}/ingest`, form);
+      totalChunks += result.chunks_extracted;
+      totalKCs += result.staged_kcs_created;
+      allManifestItems.push(...result.manifest.map(item => ({ ...item, filename: result.filename })));
+    } catch (e) {
+      toast(`Error parsing ${file.name}: ${e.message}`, 'error');
+    }
+  }
+
+  progress.classList.add('hidden');
+  if (totalKCs > 0) {
+    toast(`Extracted ${totalChunks} chunks → ${totalKCs} proposed KCs from ${files.length} file(s)`);
+  }
+
+  // Show manifest
+  if (allManifestItems.length > 0) {
+    const mp = document.getElementById('manifest-panel');
+    mp.classList.remove('hidden');
+    document.getElementById('manifest-summary').textContent =
+      `${totalChunks} chunks → ${totalKCs} proposed KCs from ${files.length} file(s)`;
+
+    document.getElementById('manifest-items').innerHTML = allManifestItems.map(item => `
+      <div class="kc-detail">
+        <div class="kc-header">
+          <span class="kc-id">${item.staged_kc_id}</span>
+          <span class="meta">${item.source_reference}</span>
+        </div>
+        <div class="source-text">${escapeHtml(item.original_text)}</div>
+        ${Object.keys(item.metadata || {}).length ? `<div class="meta">${Object.entries(item.metadata).map(([k,v]) => `<strong>${k}:</strong> ${v}`).join(' · ')}</div>` : ''}
+      </div>
+    `).join('');
+  }
+
+  refreshSession();
+}
+
+// ═══════════════════════════════════════════════════════
+// Staged KCs
+// ═══════════════════════════════════════════════════════
+
+async function loadStagedKCs() {
+  if (!currentSessionId) return;
+  const filter = document.getElementById('kc-status-filter').value;
+  const url = `/api/staging/${currentSessionId}/kcs` + (filter ? `?stage_status=${filter}` : '');
+  // Hide status-progression buttons from the bottom list when AI results panel is visible
+  const aiResultsVisible = !document.getElementById('ai-results-panel').classList.contains('hidden');
+  try {
+    const kcs = await api('GET', url);
+    const container = document.getElementById('kc-list');
+    const noKCs = document.getElementById('no-kcs');
+
+    if (kcs.length === 0) {
+      container.innerHTML = '';
+      noKCs.classList.remove('hidden');
+      return;
+    }
+    noKCs.classList.add('hidden');
+
+    // Separate active KCs from stale ones
+    const activeKCs = kcs.filter(kc => kc.stage_status !== 'stale');
+    const staleKCs = kcs.filter(kc => kc.stage_status === 'stale');
+
+    function renderKCCard(kc, showProgressBtns) {
+      return `
+      <div class="kc-detail" id="kc-${kc.id}" ${kc.stage_status === 'stale' ? 'style="opacity:0.6"' : ''}>
+        <div class="kc-header">
+          <span class="kc-id">${kc.id}</span>
+          <span>${badge(kc.stage_status)}</span>
+        </div>
+        ${kc.source_text ? `<div class="source-text">${escapeHtml(kc.source_text)}</div>` : ''}
+        ${kc.short_description ? `<div class="kc-desc"><strong>Short:</strong> ${escapeHtml(kc.short_description)}</div>` : ''}
+        ${kc.long_description ? `<div class="kc-desc"><strong>Long:</strong> ${escapeHtml(kc.long_description)}</div>` : ''}
+        <div class="meta">
+          ${kc.source_reference ? `<strong>Source:</strong> ${kc.source_reference}` : ''}
+          ${kc.kc_type ? ` · <strong>Type:</strong> ${kc.kc_type}` : ''}
+          ${kc.language_demands?.length ? ` · <strong>Language:</strong> ${kc.language_demands.join(', ')}` : ''}
+        </div>
+        ${kc.ai_correctness_note ? `<div class="meta" style="margin-top:4px; color:var(--primary);"><strong>AI note:</strong> ${escapeHtml(kc.ai_correctness_note)}</div>` : ''}
+        ${kc.reviewer_comments?.length ? `<div class="meta" style="margin-top:4px;">${kc.reviewer_comments.map(c => `<em>${c.author}:</em> ${escapeHtml(c.text)}`).join('<br>')}</div>` : ''}
+        <div class="kc-actions">
+          ${showProgressBtns && kc.stage_status === 'proposed' ? `<button class="btn btn-sm btn-success" onclick="updateKCStatus('${kc.id}','grain_approved')">Approve Grain Size</button>` : ''}
+          ${showProgressBtns && kc.stage_status === 'grain_approved' ? `<button class="btn btn-sm btn-success" onclick="updateKCStatus('${kc.id}','formulated')">Mark Formulated</button>` : ''}
+          ${kc.stage_status !== 'flagged' && kc.stage_status !== 'stale' ? `<button class="btn btn-sm btn-warning" onclick="flagKC('${kc.id}')">Flag</button>` : ''}
+          ${kc.stage_status !== 'stale' ? `<button class="btn btn-sm btn-outline" onclick="promptComment('${kc.id}')">Comment</button>` : ''}
+          ${kc.stage_status !== 'stale' ? `<button class="btn btn-sm btn-outline" onclick="editKC('${kc.id}')">Edit</button>` : ''}
+          ${kc.stage_status !== 'stale' ? `<button class="btn btn-sm btn-danger" onclick="deleteKC('${kc.id}')">Delete</button>` : ''}
+        </div>
+      </div>`;
+    }
+
+    const showProgressBtns = !aiResultsVisible;
+    let html = activeKCs.map(kc => renderKCCard(kc, showProgressBtns)).join('');
+
+    if (staleKCs.length > 0) {
+      html += `
+        <div style="margin:20px 0 12px; border-top:2px solid var(--border); padding-top:12px; display:flex; align-items:center; gap:8px; cursor:pointer;" onclick="this.nextElementSibling.classList.toggle('hidden'); this.querySelector('.chevron').textContent = this.nextElementSibling.classList.contains('hidden') ? '▶' : '▼'">
+          <span class="chevron" style="font-size:11px; color:var(--text-muted);">▶</span>
+          <span style="font-size:13px; color:var(--text-muted); font-weight:500;">Stale KCs (${staleKCs.length}) — originals replaced by splits or merges</span>
+        </div>
+        <div class="hidden">
+          ${staleKCs.map(kc => renderKCCard(kc, false)).join('')}
+        </div>`;
+    }
+
+    container.innerHTML = html;
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+function markBatchBtnDone(btnId, label) {
+  const btn = document.getElementById(btnId);
+  if (!btn) return;
+  const done = document.createElement('span');
+  done.style.cssText = 'font-size:13px;color:var(--success);font-weight:500;';
+  done.textContent = label;
+  btn.replaceWith(done);
+}
+
+async function batchApproveGrain(kcIds) {
+  const edited = window._manuallyEditedKCs || new Set();
+  kcIds = kcIds.filter(id => !edited.has(id));
+  if (kcIds.length === 0) { toast('All KCs were edited individually — nothing to batch approve.'); return; }
+  if (!confirm(`Approve grain size for ${kcIds.length} KCs?`)) return;
+  try {
+    await api('POST', `/api/staging/${currentSessionId}/kcs/batch-update`, {
+      kc_ids: kcIds, updates: { stage_status: 'grain_approved' }
+    });
+    for (const id of kcIds) markAICardResolved(id, 'Grain Approved', 'var(--success)');
+    markBatchBtnDone('batch-approve-keeps', `All ${kcIds.length} keeps approved`);
+    toast(`${kcIds.length} KCs → grain_approved`);
+    loadStagedKCs();
+    refreshSession();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function batchExecuteSplits() {
+  const splits = window._pendingSplits || [];
+  if (splits.length === 0) { toast('No pending splits', 'error'); return; }
+  const summary = splits.map(s => `${s.kc_id} → ${s.suggestions.length} KCs`).join('\n');
+  if (!confirm(`Execute ${splits.length} splits?\n\n${summary}`)) return;
+  let completed = 0;
+  for (const s of splits) {
+    try {
+      const result = await api('POST', `/api/staging/${currentSessionId}/kcs/${s.kc_id}/split`, {
+        children: s.suggestions,
+      });
+      markAICardResolved(s.kc_id, `Split → ${result.children.length} KCs`, 'var(--warning)');
+      completed++;
+    } catch (e) {
+      // Skip already-split or stale KCs
+      markAICardResolved(s.kc_id, 'Skipped (already acted on)', '#999');
+    }
+  }
+  markBatchBtnDone('batch-execute-splits', `${completed} splits executed`);
+  toast(`${completed} of ${splits.length} splits executed`);
+  window._pendingSplits = [];
+  loadStagedKCs();
+  refreshSession();
+}
+
+async function batchApproveAllProposed() {
+  // Fetch current proposed KCs (some may have already been approved or split)
+  const remaining = await api('GET', `/api/staging/${currentSessionId}/kcs?stage_status=proposed`);
+  if (remaining.length === 0) { toast('No proposed KCs remaining', 'error'); return; }
+  if (!confirm(`Approve grain size for all ${remaining.length} remaining proposed KCs?`)) return;
+  try {
+    await api('POST', `/api/staging/${currentSessionId}/kcs/batch-update`, {
+      kc_ids: remaining.map(k => k.id), updates: { stage_status: 'grain_approved' }
+    });
+    for (const k of remaining) markAICardResolved(k.id, 'Grain Approved', 'var(--success)');
+    markBatchBtnDone('batch-approve-all-proposed', `All ${remaining.length} remaining approved`);
+    toast(`${remaining.length} KCs → grain_approved`);
+    loadStagedKCs();
+    refreshSession();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function batchApproveFormulation(kcIds) {
+  const edited = window._manuallyEditedKCs || new Set();
+  kcIds = kcIds.filter(id => !edited.has(id));
+  if (kcIds.length === 0) { toast('All KCs were edited individually — nothing to batch approve.'); return; }
+  if (!confirm(`Approve formulation for ${kcIds.length} KCs?`)) return;
+  try {
+    await api('POST', `/api/staging/${currentSessionId}/kcs/batch-update`, {
+      kc_ids: kcIds, updates: { stage_status: 'formulated' }
+    });
+    for (const id of kcIds) markAICardResolved(id, 'Formulated', 'var(--success)');
+    markBatchBtnDone('batch-approve-formulations', `All ${kcIds.length} formulations approved`);
+    toast(`${kcIds.length} KCs → formulated`);
+    loadStagedKCs();
+    refreshSession();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+function markAICardResolved(kcId, label, color) {
+  // Find the card in the AI results panel and replace its action buttons with a done badge
+  const panel = document.getElementById('ai-results-content');
+  if (!panel) return;
+  // Cards contain a span.kc-id with the KC ID text
+  const cards = panel.querySelectorAll('.kc-detail');
+  for (const card of cards) {
+    const idSpan = card.querySelector('.kc-id');
+    if (idSpan && idSpan.textContent === kcId) {
+      const actions = card.querySelector('.kc-actions');
+      if (actions) {
+        actions.innerHTML = `<span class="badge" style="background:${color || 'var(--success)'};color:white;padding:4px 10px;">${label || 'Done'}</span>`;
+      }
+      card.style.opacity = '0.7';
+      break;
+    }
+  }
+  // Auto-dismiss when all cards are resolved (no remaining action buttons)
+  checkAIResultsAllDone();
+}
+
+function checkAIResultsAllDone() {
+  const panel = document.getElementById('ai-results-content');
+  if (!panel) return;
+  const remaining = panel.querySelectorAll('.kc-actions button.btn');
+  const batchBtns = panel.querySelectorAll('[data-batch-bar] button.btn');
+  if (remaining.length === 0 && batchBtns.length === 0) {
+    // All actions resolved — auto-dismiss after a brief pause so user sees the final state
+    setTimeout(() => {
+      dismissAIResults();
+    }, 800);
+  }
+}
+
+async function updateKCStatus(kcId, status) {
+  try {
+    await api('PATCH', `/api/staging/${currentSessionId}/kcs/${kcId}`, { stage_status: status });
+    toast(`${kcId} → ${status}`);
+    const labels = { grain_approved: 'Grain Approved', formulated: 'Formulated' };
+    markAICardResolved(kcId, labels[status] || status, 'var(--success)');
+    loadStagedKCs();
+    refreshSession();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function flagKC(kcId) {
+  try {
+    await api('POST', `/api/staging/${currentSessionId}/kcs/${kcId}/flag`);
+    toast(`${kcId} flagged for Tier 2 review`);
+    markAICardResolved(kcId, 'Flagged', 'var(--warning)');
+    loadStagedKCs();
+    refreshSession();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function splitKC(kcId, splitSuggestions) {
+  if (!confirm(`Split ${kcId} into ${splitSuggestions.length} new KCs?\n\n${splitSuggestions.map((s,i) => `${i+1}. ${s}`).join('\n')}`)) return;
+  try {
+    const result = await api('POST', `/api/staging/${currentSessionId}/kcs/${kcId}/split`, {
+      children: splitSuggestions,
+    });
+    toast(`${kcId} split into ${result.children.length} KCs: ${result.children.map(c => c.id).join(', ')}`);
+    markAICardResolved(kcId, `Split → ${result.children.length} KCs`, 'var(--warning)');
+    loadStagedKCs();
+    refreshSession();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function showMergeDialog(kcId, mergeTargetId) {
+  // Fetch both KCs so we can display them
+  let kcA, kcB;
+  try {
+    kcA = await api('GET', `/api/staging/${currentSessionId}/kcs/${kcId}`);
+    kcB = await api('GET', `/api/staging/${currentSessionId}/kcs/${mergeTargetId}`);
+  } catch (e) {
+    toast(`Could not load KCs for merge: ${e.message}`, 'error');
+    return;
+  }
+
+  // Build a modal overlay
+  const overlay = document.createElement('div');
+  overlay.id = 'merge-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;display:flex;align-items:center;justify-content:center;';
+  overlay.innerHTML = `
+    <div style="background:white;border-radius:12px;max-width:720px;width:95%;max-height:85vh;overflow-y:auto;padding:24px;box-shadow:0 8px 32px rgba(0,0,0,0.2);">
+      <h3 style="margin:0 0 16px 0;">Merge KCs</h3>
+      <p style="color:#666;margin:0 0 16px 0;">The AI suggests merging these two KCs. Choose how to proceed.</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
+        <div style="border:2px solid #e0e0e0;border-radius:8px;padding:12px;">
+          <div style="font-weight:600;font-family:monospace;margin-bottom:6px;">${escapeHtml(kcA.id)}</div>
+          <div style="font-size:13px;color:#444;white-space:pre-wrap;">${escapeHtml(kcA.source_text || kcA.short_description || '(no text)')}</div>
+        </div>
+        <div style="border:2px solid #e0e0e0;border-radius:8px;padding:12px;">
+          <div style="font-weight:600;font-family:monospace;margin-bottom:6px;">${escapeHtml(kcB.id)}</div>
+          <div style="font-size:13px;color:#444;white-space:pre-wrap;">${escapeHtml(kcB.source_text || kcB.short_description || '(no text)')}</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn btn-sm btn-success" id="merge-keep-a" style="flex:1;">Keep <strong>${escapeHtml(kcA.id)}</strong>, retire other</button>
+        <button class="btn btn-sm btn-success" id="merge-keep-b" style="flex:1;">Keep <strong>${escapeHtml(kcB.id)}</strong>, retire other</button>
+        <button class="btn btn-sm btn-outline" id="merge-create" style="flex:1;">Create new merged KC</button>
+        <button class="btn btn-sm btn-outline" id="merge-cancel" style="flex:0 0 auto;">Cancel</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  const cleanup = () => overlay.remove();
+
+  document.getElementById('merge-cancel').onclick = cleanup;
+  overlay.onclick = (e) => { if (e.target === overlay) cleanup(); };
+
+  document.getElementById('merge-keep-a').onclick = async () => {
+    cleanup();
+    await executeMerge('keep', [kcA.id, kcB.id], kcA.id);
+  };
+  document.getElementById('merge-keep-b').onclick = async () => {
+    cleanup();
+    await executeMerge('keep', [kcA.id, kcB.id], kcB.id);
+  };
+  document.getElementById('merge-create').onclick = async () => {
+    cleanup();
+    const desc = prompt('Description for the merged KC (leave blank to combine both):');
+    await executeMerge('create', [kcA.id, kcB.id], null, desc || undefined);
+  };
+}
+
+async function executeMerge(mode, sourceIds, survivorId, description) {
+  try {
+    const body = { mode, source_ids: sourceIds };
+    if (survivorId) body.survivor_id = survivorId;
+    if (description) body.description = description;
+    const result = await api('POST', `/api/staging/${currentSessionId}/merge`, body);
+    if (mode === 'keep') {
+      toast(`Merged: kept ${result.survivor_id}, retired ${result.retired_ids.join(', ')}`);
+      markAICardResolved(result.survivor_id, 'Merged (kept)', 'var(--primary)');
+      for (const rid of result.retired_ids) markAICardResolved(rid, 'Merged (retired)', '#999');
+    } else {
+      toast(`Merged: created ${result.merged_kc.id}, retired ${result.retired_ids.join(', ')}`);
+      for (const rid of result.retired_ids) markAICardResolved(rid, `Merged → ${result.merged_kc.id}`, 'var(--primary)');
+    }
+    loadStagedKCs();
+    refreshSession();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function promptComment(kcId) {
+  const text = prompt(`Add a comment to ${kcId}:`);
+  if (!text) return;
+  const author = prompt('Your name:', 'Reviewer');
+  if (!author) return;
+  try {
+    await api('POST', `/api/staging/${currentSessionId}/kcs/${kcId}/comment`, { author, text });
+    toast('Comment added');
+    loadStagedKCs();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function editKC(kcId) {
+  const kc = await api('GET', `/api/staging/${currentSessionId}/kcs/${kcId}`);
+  const shortDesc = prompt('Short description:', kc.short_description || '');
+  if (shortDesc === null) return;
+  const longDesc = prompt('Long description (behavioral definition):', kc.long_description || '');
+  if (longDesc === null) return;
+  const update = {};
+  if (shortDesc !== (kc.short_description || '')) update.short_description = shortDesc;
+  if (longDesc !== (kc.long_description || '')) update.long_description = longDesc;
+  if (Object.keys(update).length === 0) return;
+  try {
+    await api('PATCH', `/api/staging/${currentSessionId}/kcs/${kcId}`, update);
+    toast(`${kcId} updated`);
+    // Track this KC as manually edited so batch approve skips it
+    if (!window._manuallyEditedKCs) window._manuallyEditedKCs = new Set();
+    window._manuallyEditedKCs.add(kcId);
+    markAICardResolved(kcId, 'Edited manually', 'var(--primary)');
+    updateBatchButtonLabels();
+    loadStagedKCs();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+function updateBatchButtonLabels() {
+  const edited = window._manuallyEditedKCs || new Set();
+  if (edited.size === 0) return;
+  // Helper: update a batch button to exclude edited KCs
+  function updateBtn(btnId, labelPrefix, actionFn) {
+    const btn = document.getElementById(btnId);
+    if (!btn || !btn.dataset.originalIds) return;
+    const origIds = JSON.parse(btn.dataset.originalIds);
+    const remaining = origIds.filter(id => !edited.has(id));
+    if (remaining.length < origIds.length && remaining.length > 0) {
+      btn.textContent = `Approve ${remaining.length} Remaining`;
+      btn.setAttribute('onclick', `${actionFn}(${JSON.stringify(remaining).replace(/"/g, '&quot;')})`);
+    } else if (remaining.length === 0) {
+      markBatchBtnDone(btnId, 'All handled individually');
+    }
+  }
+  updateBtn('batch-approve-keeps', 'Approve', 'batchApproveGrain');
+  updateBtn('batch-approve-formulations', 'Approve', 'batchApproveFormulation');
+}
+
+async function deleteKC(kcId) {
+  if (!confirm(`Delete ${kcId}? This cannot be undone.`)) return;
+  try {
+    await api('DELETE', `/api/staging/${currentSessionId}/kcs/${kcId}`);
+    toast(`${kcId} deleted`);
+    loadStagedKCs();
+    refreshSession();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+// ═══════════════════════════════════════════════════════
+// AI Features
+// ═══════════════════════════════════════════════════════
+
+let aiAvailable = false;
+
+async function checkAIStatus() {
+  try {
+    const status = await api('GET', '/api/ai/status');
+    aiAvailable = status.available;
+    const banner = document.getElementById('ai-banner');
+    const icon = document.getElementById('ai-status-icon');
+    const text = document.getElementById('ai-status-text');
+    if (status.available) {
+      banner.style.borderLeftColor = 'var(--success)';
+      icon.textContent = '✓';
+      text.textContent = 'AI service is connected and ready.';
+    } else {
+      banner.style.borderLeftColor = 'var(--warning)';
+      icon.textContent = '⚠';
+      text.innerHTML = `AI not configured: ${status.message}. <span style="color:var(--text-muted)">AI features (grain analysis, formulation, prerequisites) are disabled. You can still use manual review.</span>`;
+    }
+  } catch (e) {
+    document.getElementById('ai-status-text').textContent = 'Could not check AI status.';
+  }
+}
+
+function aiSetWorking(working) {
+  document.getElementById('ai-working').classList.toggle('hidden', !working);
+  document.querySelectorAll('[id^="btn-ai-"]').forEach(b => b.disabled = working);
+}
+
+function showAIResults(title, html, {aboveKCs = false} = {}) {
+  const panel = document.getElementById('ai-results-panel');
+  const kcPanel = document.getElementById('staged-kcs-panel');
+  panel.classList.remove('hidden');
+  document.getElementById('ai-results-title').textContent = title;
+  document.getElementById('ai-results-content').innerHTML = html;
+  // Show/hide the manual-edit notice
+  const notice = document.getElementById('ai-results-notice');
+  notice.classList.toggle('hidden', !aboveKCs);
+  // Position panel above or below Staged KCs
+  if (aboveKCs && kcPanel && panel.nextElementSibling !== kcPanel) {
+    kcPanel.parentNode.insertBefore(panel, kcPanel);
+  }
+}
+
+function dismissAIResults() {
+  const panel = document.getElementById('ai-results-panel');
+  const kcPanel = document.getElementById('staged-kcs-panel');
+  panel.classList.add('hidden');
+  // Move panel back below KCs panel
+  if (kcPanel && kcPanel.parentNode) {
+    kcPanel.parentNode.insertBefore(panel, kcPanel.nextSibling);
+  }
+  loadStagedKCs();
+}
+
+async function aiGrainReview() {
+  if (!aiAvailable) { toast('AI is not configured. Set ANTHROPIC_API_KEY and restart.', 'error'); return; }
+  // Get all proposed KCs
+  const kcs = await api('GET', `/api/staging/${currentSessionId}/kcs?stage_status=proposed`);
+  if (kcs.length === 0) { toast('No proposed KCs to review.', 'error'); return; }
+
+  aiSetWorking(true);
+  try {
+    const result = await api('POST', `/api/staging/${currentSessionId}/ai/grain-review`, {
+      kc_ids: kcs.map(k => k.id),
+    });
+
+    const reviews = result.reviews || [];
+    const kcLookup = Object.fromEntries(kcs.map(k => [k.id, k]));
+    // Store analyses in a map so we don't have to inline them in onclick attributes
+    window._grainAnalysisMap = Object.fromEntries(reviews.map(r => [r.kc_id, r.analysis || '']));
+    const html = reviews.map(r => {
+      const kc = kcLookup[r.kc_id];
+      const sourceText = kc?.source_text || kc?.short_description || '';
+      return `
+      <div class="kc-detail" style="border-left:3px solid ${r.recommendation === 'keep' ? 'var(--success)' : r.recommendation === 'split' ? 'var(--warning)' : r.recommendation === 'merge' ? 'var(--primary)' : 'var(--muted)'}">
+        <div class="kc-header">
+          <span class="kc-id">${r.kc_id}</span>
+          <span class="badge badge-${r.recommendation === 'keep' ? 'confirmed' : r.recommendation === 'split' ? 'stale' : r.recommendation === 'merge' ? 'proposed' : 'grain_approved'}">${r.recommendation}</span>
+        </div>
+        ${sourceText ? `<div class="meta" style="margin-bottom:6px;padding:6px 8px;background:#f8f8f8;border-radius:4px;font-size:13px;white-space:pre-wrap;">${escapeHtml(sourceText)}</div>` : ''}
+        <div class="kc-desc">${escapeHtml(r.analysis || '')}</div>
+        ${r.split_suggestions?.length ? `<div class="meta" style="margin-top:6px"><strong>Split into:</strong><ul style="margin:4px 0 0 16px">${r.split_suggestions.map(s => `<li>${escapeHtml(s)}</li>`).join('')}</ul></div>` : ''}
+        ${r.recommendation === 'merge' && r.merge_target ? `<div class="meta" style="margin-top:6px"><strong>Merge with:</strong> <code>${escapeHtml(r.merge_target)}</code></div>` : ''}
+        ${r.questions?.length ? `<div class="meta" style="margin-top:6px"><strong>Questions:</strong><ul style="margin:4px 0 0 16px">${r.questions.map(q => `<li>${escapeHtml(q)}</li>`).join('')}</ul></div>` : ''}
+        <div class="kc-actions">
+          ${r.recommendation === 'keep' ?
+            `<button class="btn btn-sm btn-success" onclick="updateKCStatus('${r.kc_id}','grain_approved')">Approve Grain Size</button>` :
+           r.recommendation === 'split' && r.split_suggestions?.length ?
+            `<button class="btn btn-sm btn-success" onclick="splitKC('${r.kc_id}', ${JSON.stringify(r.split_suggestions).replace(/'/g, "\\'").replace(/"/g, '&quot;')})" style="background:var(--warning);border-color:var(--warning)">Split into ${r.split_suggestions.length} KCs</button>
+             <button class="btn btn-sm btn-outline" onclick="updateKCStatus('${r.kc_id}','grain_approved')">Keep as-is</button>` :
+           r.recommendation === 'merge' && r.merge_target ?
+            `<button class="btn btn-sm btn-success" onclick="showMergeDialog('${r.kc_id}', '${r.merge_target.replace(/'/g, "\\'")}')" style="background:var(--primary);border-color:var(--primary)">Merge with ${escapeHtml(r.merge_target)}</button>
+             <button class="btn btn-sm btn-outline" onclick="updateKCStatus('${r.kc_id}','grain_approved')">Keep as-is</button>` :
+            `<button class="btn btn-sm btn-success" onclick="updateKCStatus('${r.kc_id}','grain_approved')">Approve Grain Size</button>`
+          }
+          <button class="btn btn-sm btn-warning" onclick="flagKC('${r.kc_id}')">Flag</button>
+          <button class="btn btn-sm btn-outline" onclick="openConversation('${r.kc_id}', (window._grainAnalysisMap||{})['${r.kc_id}'])">Discuss</button>
+        </div>
+      </div>
+    `}).join('');
+
+    // Batch actions
+    const keepIds = reviews.filter(r => r.recommendation === 'keep').map(r => r.kc_id);
+    const splitItems = reviews.filter(r => r.recommendation === 'split' && r.split_suggestions?.length);
+
+    // Store splits globally so the batch function can access them
+    window._pendingSplits = splitItems.map(r => ({ kc_id: r.kc_id, suggestions: r.split_suggestions }));
+
+    const allIds = reviews.map(r => r.kc_id);
+
+    let batchButtons = [];
+    if (keepIds.length > 0) {
+      batchButtons.push(`<button id="batch-approve-keeps" class="btn btn-sm btn-success" data-original-ids='${JSON.stringify(keepIds)}' onclick="batchApproveGrain(${JSON.stringify(keepIds).replace(/"/g, '&quot;')})">Approve All Keeps (${keepIds.length})</button>`);
+    }
+    if (splitItems.length > 0) {
+      batchButtons.push(`<button id="batch-execute-splits" class="btn btn-sm" onclick="batchExecuteSplits()" style="background:var(--warning);border-color:var(--warning);color:white;">Execute All Splits (${splitItems.length})</button>`);
+    }
+    if (allIds.length > keepIds.length) {
+      batchButtons.push(`<button id="batch-approve-all-proposed" class="btn btn-sm btn-outline" onclick="batchApproveAllProposed()">Approve All Remaining</button>`);
+    }
+
+    const batchBar = batchButtons.length > 0 ? `
+      <div data-batch-bar style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px;padding:10px 12px;background:#f0f8f0;border-radius:8px;">
+        <span style="font-size:13px;color:#555;">${reviews.length} KCs analyzed:</span>
+        ${batchButtons.join('')}
+      </div>
+    ` : '';
+
+    showAIResults(`Grain Size Review — ${reviews.length} KCs analyzed`, batchBar + html, {aboveKCs: true});
+    toast(`Grain review complete: ${reviews.length} KCs analyzed`);
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+  aiSetWorking(false);
+}
+
+async function aiFormulate() {
+  if (!aiAvailable) { toast('AI is not configured. Set ANTHROPIC_API_KEY and restart.', 'error'); return; }
+  const allKcs = await api('GET', `/api/staging/${currentSessionId}/kcs?stage_status=grain_approved`);
+  if (allKcs.length === 0) { toast('No grain-approved KCs to formulate. Approve grain size first.', 'error'); return; }
+
+  // Skip KCs the user has manually edited — don't overwrite their work
+  const edited = window._manuallyEditedKCs || new Set();
+  const kcs = allKcs.filter(k => !edited.has(k.id));
+  const skippedCount = allKcs.length - kcs.length;
+  if (kcs.length === 0) { toast(`All ${allKcs.length} grain-approved KCs were manually edited — skipping AI formulation.`); return; }
+  if (skippedCount > 0) { toast(`Skipping ${skippedCount} manually-edited KC(s); formulating ${kcs.length} remaining.`); }
+
+  aiSetWorking(true);
+  try {
+    const result = await api('POST', `/api/staging/${currentSessionId}/ai/formulate`, {
+      kc_ids: kcs.map(k => k.id),
+    });
+
+    const formulations = result.formulations || [];
+    const kcLookup = Object.fromEntries(kcs.map(k => [k.id, k]));
+    const html = formulations.map(f => {
+      const kc = kcLookup[f.kc_id];
+      const sourceText = kc?.source_text || '';
+      return `
+      <div class="kc-detail">
+        <div class="kc-header">
+          <span class="kc-id">${f.kc_id}</span>
+          <span class="badge badge-formulated">${f.kc_type || 'KC'}</span>
+        </div>
+        ${sourceText ? `<div class="meta" style="margin-bottom:6px;padding:6px 8px;background:#f8f8f8;border-radius:4px;font-size:13px;white-space:pre-wrap;">${escapeHtml(sourceText)}</div>` : ''}
+        <div class="kc-desc"><strong>Short:</strong> ${escapeHtml(f.short_description || '')}</div>
+        <div class="kc-desc"><strong>Long:</strong> ${escapeHtml(f.long_description || '')}</div>
+        <div class="meta">
+          <strong>Language:</strong> ${(f.language_demands || []).join(', ') || 'none'}
+          ${f.correctness_note ? ` · <strong style="color:var(--warning)">Note:</strong> ${escapeHtml(f.correctness_note)}` : ''}
+        </div>
+        <div class="kc-actions">
+          <button class="btn btn-sm btn-success" onclick="updateKCStatus('${f.kc_id}','formulated')">Approve Formulation</button>
+          <button class="btn btn-sm btn-outline" onclick="editKC('${f.kc_id}')">Edit</button>
+        </div>
+      </div>
+    `}).join('');
+
+    const formulationIds = formulations.map(f => f.kc_id);
+    const batchBarF = formulationIds.length > 0 ? `
+      <div data-batch-bar style="display:flex;gap:8px;align-items:center;margin-bottom:12px;padding:10px 12px;background:#f0f8f0;border-radius:8px;">
+        <span style="font-size:13px;color:#555;">${formulationIds.length} KC${formulationIds.length > 1 ? 's' : ''} formulated</span>
+        <button id="batch-approve-formulations" class="btn btn-sm btn-success" data-original-ids='${JSON.stringify(formulationIds)}' onclick="batchApproveFormulation(${JSON.stringify(formulationIds).replace(/"/g, '&quot;')})">Approve All Formulations</button>
+      </div>
+    ` : '';
+
+    showAIResults(`KC Formulations — ${formulations.length} KCs written`, batchBarF + html, {aboveKCs: true});
+    loadStagedKCs();
+    refreshSession();
+    toast(`Formulation complete: ${formulations.length} KCs written`);
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+  aiSetWorking(false);
+}
+
+async function aiPrerequisites() {
+  if (!aiAvailable) { toast('AI is not configured. Set ANTHROPIC_API_KEY and restart.', 'error'); return; }
+  const kcs = await api('GET', `/api/staging/${currentSessionId}/kcs?stage_status=formulated`);
+  if (kcs.length === 0) { toast('No formulated KCs. Formulate KCs first.', 'error'); return; }
+
+  aiSetWorking(true);
+  try {
+    const result = await api('POST', `/api/staging/${currentSessionId}/ai/prerequisites`, {
+      kc_ids: kcs.map(k => k.id),
+    });
+
+    const proposals = result.proposals || {};
+    const edges = proposals.edges || proposals || [];
+    const gaps = proposals.gaps || [];
+    const kcLookup = Object.fromEntries(kcs.map(k => [k.id, k]));
+    const kcTip = (id) => {
+      const k = kcLookup[id];
+      if (!k) return id;
+      let parts = [];
+      if (k.short_description) parts.push(k.short_description);
+      if (k.source_text && k.source_text !== k.short_description) parts.push(k.source_text);
+      if (k.long_description) parts.push(k.long_description);
+      return parts.join('\n\n') || id;
+    };
+
+    let html = '';
+    if (Array.isArray(edges) && edges.length) {
+      html += `<h3 style="font-size:14px; margin-bottom:8px;">Proposed Edges (${edges.length})</h3>`;
+      html += edges.map(e => `
+        <div class="edge-item">
+          <span class="kc-ref"><strong>${e.source_kc_id}</strong><span class="kc-tooltip">${escapeHtml(kcTip(e.source_kc_id))}</span></span>
+          <span class="arrow">→</span>
+          <span class="kc-ref"><strong>${e.target_kc_id}</strong><span class="kc-tooltip">${escapeHtml(kcTip(e.target_kc_id))}</span></span>
+          <span class="badge badge-${e.confidence === 'high' ? 'confirmed' : e.confidence === 'medium' ? 'grain_approved' : 'proposed'}">${e.confidence || 'proposed'}</span>
+          <span class="reasoning">${escapeHtml(e.reasoning || '')}</span>
+        </div>
+      `).join('');
+    }
+    if (gaps.length) {
+      html += `<h3 style="font-size:14px; margin:16px 0 8px;">Gaps Identified (${gaps.length})</h3>`;
+      html += gaps.map(g => `
+        <div class="kc-detail" style="border-left:3px solid var(--danger);">
+          <div class="kc-desc"><strong>Needed for:</strong> ${g.needed_for}</div>
+          <div class="kc-desc">${escapeHtml(g.description || '')}</div>
+          <div class="meta">${escapeHtml(g.reasoning || '')}</div>
+        </div>
+      `).join('');
+    }
+
+    showAIResults(`Prerequisite Analysis — ${result.edges_created || 0} edges created`, html);
+    loadStagedEdges();
+    refreshSession();
+    toast(`Prerequisites proposed: ${result.edges_created || 0} edges created`);
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+  aiSetWorking(false);
+}
+
+async function aiCorrectnessCheck() {
+  if (!aiAvailable) { toast('AI is not configured. Set ANTHROPIC_API_KEY and restart.', 'error'); return; }
+  // Check all KCs that have descriptions
+  const allKCs = await api('GET', `/api/staging/${currentSessionId}/kcs`);
+  const kcsWithContent = allKCs.filter(k => k.short_description || k.long_description);
+  if (kcsWithContent.length === 0) { toast('No KCs with descriptions to check.', 'error'); return; }
+
+  aiSetWorking(true);
+  try {
+    const result = await api('POST', `/api/staging/${currentSessionId}/ai/correctness-check`, {
+      kc_ids: kcsWithContent.map(k => k.id),
+    });
+
+    const checks = result.checks || [];
+    const kcLookup = Object.fromEntries(kcsWithContent.map(k => [k.id, k]));
+    const html = checks.map(c => {
+      const kc = kcLookup[c.kc_id];
+      const sourceText = kc?.short_description || kc?.source_text || '';
+      return `
+      <div class="kc-detail" style="border-left:3px solid ${c.is_correct ? 'var(--success)' : 'var(--danger)'};">
+        <div class="kc-header">
+          <span class="kc-id">${c.kc_id}</span>
+          <span class="badge badge-${c.is_correct ? 'confirmed' : 'flagged'}">${c.is_correct ? 'correct' : 'issues found'}</span>
+        </div>
+        ${sourceText ? `<div class="meta" style="margin-bottom:6px;padding:6px 8px;background:#f8f8f8;border-radius:4px;font-size:13px;white-space:pre-wrap;">${escapeHtml(sourceText)}</div>` : ''}
+        ${c.issues?.length ? `<div class="meta" style="color:var(--danger)"><strong>Issues:</strong><ul style="margin:4px 0 0 16px">${c.issues.map(i => `<li>${escapeHtml(i)}</li>`).join('')}</ul></div>` : ''}
+        ${c.suggestions?.length ? `<div class="meta"><strong>Suggestions:</strong><ul style="margin:4px 0 0 16px">${c.suggestions.map(s => `<li>${escapeHtml(s)}</li>`).join('')}</ul></div>` : ''}
+      </div>
+    `}).join('');
+
+    showAIResults(`Correctness Check — ${checks.filter(c => !c.is_correct).length} issues found`, html);
+    correctnessCheckDone = true;
+    loadStagedKCs();
+    refreshSession();
+    toast(`Correctness check complete: ${checks.length} KCs reviewed`);
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+  aiSetWorking(false);
+}
+
+// ═══════════════════════════════════════════════════════
+// Staged Edges
+// ═══════════════════════════════════════════════════════
+
+async function loadStagedEdges() {
+  if (!currentSessionId) return;
+  const filter = document.getElementById('edge-status-filter').value;
+  const url = `/api/staging/${currentSessionId}/edges` + (filter ? `?status=${filter}` : '');
+  try {
+    const [edges, allKCs] = await Promise.all([
+      api('GET', url),
+      api('GET', `/api/staging/${currentSessionId}/kcs`),
+    ]);
+    const container = document.getElementById('edge-list');
+    const noEdges = document.getElementById('no-edges');
+
+    if (edges.length === 0) {
+      container.innerHTML = '';
+      noEdges.classList.remove('hidden');
+      return;
+    }
+    noEdges.classList.add('hidden');
+
+    const kcMap = Object.fromEntries(allKCs.map(k => [k.id, k]));
+    const tip = (id) => {
+      const k = kcMap[id];
+      if (!k) return id;
+      let parts = [];
+      if (k.short_description) parts.push(k.short_description);
+      if (k.source_text && k.source_text !== k.short_description) parts.push(k.source_text);
+      if (k.long_description) parts.push(k.long_description);
+      return parts.join('\n\n') || id;
+    };
+
+    container.innerHTML = edges.map(e => `
+      <div class="edge-item">
+        <span class="kc-ref"><strong>${e.source_kc_id}</strong><span class="kc-tooltip">${escapeHtml(tip(e.source_kc_id))}</span></span>
+        <span class="arrow">→</span>
+        <span class="kc-ref"><strong>${e.target_kc_id}</strong><span class="kc-tooltip">${escapeHtml(tip(e.target_kc_id))}</span></span>
+        ${badge(e.status)}
+        <span class="reasoning">${e.ai_reasoning ? escapeHtml(e.ai_reasoning) : ''}</span>
+        ${e.status === 'proposed' ? `
+          <button class="btn btn-sm btn-success" onclick="updateEdge(${e.id},'confirmed')">Confirm</button>
+          <button class="btn btn-sm btn-danger" onclick="updateEdge(${e.id},'rejected')">Reject</button>
+        ` : ''}
+        <button class="btn btn-sm btn-outline" onclick="deleteEdge(${e.id})">×</button>
+      </div>
+    `).join('');
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function batchConfirmEdges() {
+  // Fetch all proposed edges
+  const edges = await api('GET', `/api/staging/${currentSessionId}/edges?status=proposed`);
+  if (edges.length === 0) { toast('No proposed edges to confirm', 'error'); return; }
+  if (!confirm(`Confirm all ${edges.length} proposed edges?`)) return;
+  let confirmed = 0;
+  for (const e of edges) {
+    try {
+      await api('PATCH', `/api/staging/${currentSessionId}/edges/${e.id}`, { status: 'confirmed' });
+      confirmed++;
+    } catch (err) { /* skip failures */ }
+  }
+  toast(`${confirmed} edges confirmed`);
+
+  // Advance formulated KCs that participate in confirmed edges to edges_confirmed
+  const allEdges = await api('GET', `/api/staging/${currentSessionId}/edges?status=confirmed`);
+  const kcIdsWithEdges = new Set();
+  for (const e of allEdges) { kcIdsWithEdges.add(e.source_kc_id); kcIdsWithEdges.add(e.target_kc_id); }
+  const formulatedKCs = await api('GET', `/api/staging/${currentSessionId}/kcs?stage_status=formulated`);
+  const toAdvance = formulatedKCs.filter(k => kcIdsWithEdges.has(k.id)).map(k => k.id);
+  if (toAdvance.length > 0) {
+    await api('POST', `/api/staging/${currentSessionId}/kcs/batch-update`, {
+      kc_ids: toAdvance, updates: { stage_status: 'edges_confirmed' }
+    });
+    toast(`${toAdvance.length} KCs → edges_confirmed`);
+  }
+
+  // Update button to show done state
+  const btn = document.getElementById('btn-confirm-all-edges');
+  if (btn) {
+    btn.textContent = `All ${confirmed} Edges Confirmed ✓`;
+    btn.className = 'btn btn-sm btn-outline';
+    btn.style.cssText = 'color:var(--success);border-color:var(--success);background:transparent;';
+    btn.disabled = true;
+  }
+  loadStagedEdges();
+  refreshSession();
+}
+
+async function updateEdge(edgeId, status) {
+  try {
+    await api('PATCH', `/api/staging/${currentSessionId}/edges/${edgeId}`, { status });
+    toast(`Edge ${edgeId} → ${status}`);
+    loadStagedEdges();
+    refreshSession();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function deleteEdge(edgeId) {
+  try {
+    await api('DELETE', `/api/staging/${currentSessionId}/edges/${edgeId}`);
+    toast('Edge deleted');
+    loadStagedEdges();
+    refreshSession();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function validateEdges() {
+  try {
+    const result = await api('POST', `/api/staging/${currentSessionId}/edges/validate`);
+    const el = document.getElementById('edge-validation');
+    el.classList.remove('hidden');
+    // Find the validate button and update it
+    const vbtn = el.closest('.panel')?.querySelector('button[onclick="validateEdges()"]');
+    if (result.valid) {
+      el.style.background = '#d1fae5';
+      el.innerHTML = '✓ No cycles detected among confirmed edges.';
+      if (vbtn) {
+        vbtn.textContent = 'Acyclic ✓';
+        vbtn.className = 'btn btn-sm btn-outline';
+        vbtn.style.cssText = 'color:var(--success);border-color:var(--success);background:transparent;';
+      }
+    } else {
+      el.style.background = '#fee2e2';
+      el.innerHTML = `✗ ${result.message}<br>Cycles: ${result.cycles.map(c => c.join(' → ')).join('; ')}`;
+      if (vbtn) {
+        vbtn.textContent = 'Cycles Found ✗';
+        vbtn.className = 'btn btn-sm btn-outline';
+        vbtn.style.cssText = 'color:var(--danger);border-color:var(--danger);background:transparent;';
+      }
+    }
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+// ═══════════════════════════════════════════════════════
+// Staged Schemas
+// ═══════════════════════════════════════════════════════
+
+// Cache for KC data used in schema rendering
+let _schemaKCCache = {};
+
+async function loadStagedSchemas() {
+  if (!currentSessionId) return;
+  try {
+    const [schemas, allKCs] = await Promise.all([
+      api('GET', `/api/staging/${currentSessionId}/schemas`),
+      api('GET', `/api/staging/${currentSessionId}/kcs`),
+    ]);
+    const container = document.getElementById('schema-list');
+    const noSchemas = document.getElementById('no-schemas');
+
+    // Build KC lookup and track assigned KCs
+    _schemaKCCache = Object.fromEntries(allKCs.map(k => [k.id, k]));
+    const assignedKCIds = new Set(schemas.flatMap(s => s.kc_ids));
+    const eligibleKCs = allKCs.filter(k =>
+      ['edges_confirmed', 'schema_assigned'].includes(k.stage_status) && !assignedKCIds.has(k.id)
+    );
+
+    // Populate parent schema dropdown for manual creation form
+    const parentSelect = document.getElementById('manual-schema-parent');
+    if (parentSelect) {
+      parentSelect.innerHTML = '<option value="">None</option>' +
+        schemas.map(s => `<option value="${s.id}">${escapeHtml(s.name)} (${s.id})</option>`).join('');
+    }
+
+    if (schemas.length === 0) {
+      container.innerHTML = '';
+      noSchemas.classList.remove('hidden');
+      return;
+    }
+    noSchemas.classList.add('hidden');
+
+    const kcTip = (id) => {
+      const k = _schemaKCCache[id];
+      if (!k) return id;
+      return k.short_description || k.source_text || id;
+    };
+
+    // Sort schemas: parents first, children indented underneath
+    const schemaLookup = Object.fromEntries(schemas.map(s => [s.id, s]));
+    const topLevel = schemas.filter(s => !s.parent_schema_id);
+    const ordered = [];
+    for (const s of topLevel) {
+      ordered.push({ ...s, _depth: 0 });
+      for (const child of schemas.filter(c => c.parent_schema_id === s.id)) {
+        ordered.push({ ...child, _depth: 1 });
+      }
+    }
+    // Add orphan children (parent not in current set)
+    for (const s of schemas) {
+      if (s.parent_schema_id && !schemaLookup[s.parent_schema_id] && !ordered.some(o => o.id === s.id)) {
+        ordered.push({ ...s, _depth: 0 });
+      }
+    }
+
+    const hasChildren = new Set(schemas.filter(s => s.parent_schema_id).map(s => s.parent_schema_id));
+
+    container.innerHTML = ordered.map(s => {
+      const indent = s._depth > 0 ? 'margin-left:28px;' : '';
+      const hierBadge = hasChildren.has(s.id)
+        ? `<span class="badge" style="background:#e0e7ff;color:#3730a3;margin-left:6px;">parent</span>`
+        : (s.parent_schema_id ? `<span class="badge" style="background:#dbeafe;color:#1e40af;margin-left:6px;">child</span>` : '');
+      return `
+      <div class="kc-detail" id="schema-card-${s.id}" style="${indent}">
+        <div class="kc-header">
+          <span class="kc-id">${s.id}</span>
+          <span>${badge(s.status)}</span>
+          ${hierBadge}
+        </div>
+        <div class="kc-desc"><strong>${escapeHtml(s.name)}</strong></div>
+        ${s.description ? `<div class="meta">${escapeHtml(s.description)}</div>` : ''}
+        <div style="margin-top:6px;">
+          <div class="meta" style="margin-bottom:4px;">KCs (${s.kc_ids.length}):</div>
+          ${s.kc_ids.length ? `<div style="margin-left:4px;">${s.kc_ids.map(id => `
+            <div style="display:flex;align-items:baseline;gap:6px;padding:3px 0;border-bottom:1px solid #f0f0f0;font-size:13px;">
+              <code style="font-size:12px;white-space:nowrap;color:var(--primary);">${id}</code>
+              <span style="flex:1;color:var(--text);">${escapeHtml(kcTip(id))}</span>
+              <span onclick="removeKCFromSchema('${s.id}','${id}')" style="cursor:pointer;color:var(--danger);font-size:14px;padding:0 4px;" title="Remove from schema">&times;</span>
+            </div>
+          `).join('')}</div>` : '<div class="meta"><em>none</em></div>'}
+        </div>
+        <div class="kc-actions">
+          ${eligibleKCs.length > 0 ? `
+            <select onchange="addKCToSchema('${s.id}', this.value); this.value='';" style="font-size:12px;">
+              <option value="">+ Add KC...</option>
+              ${eligibleKCs.map(k => `<option value="${k.id}">${k.id} — ${escapeHtml((k.short_description || '').substring(0, 50))}</option>`).join('')}
+            </select>
+          ` : '<span style="font-size:12px;color:var(--text-muted);">No unassigned KCs</span>'}
+          <button class="btn btn-sm btn-outline" onclick="editSchema('${s.id}')">Edit</button>
+          <button class="btn btn-sm btn-danger" onclick="deleteSchema('${s.id}')">Delete</button>
+        </div>
+      </div>`;
+    }).join('');
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function validateSchemas() {
+  try {
+    const result = await api('POST', `/api/staging/${currentSessionId}/schemas/validate`);
+    const el = document.getElementById('schema-validation');
+    el.classList.remove('hidden');
+    if (result.valid) {
+      el.style.background = '#d1fae5';
+      el.innerHTML = '&#10003; All schema checks passed.';
+    } else {
+      el.style.background = '#fee2e2';
+      el.innerHTML = `&#10007; ${result.message}`;
+    }
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function addKCToSchema(schemaId, kcId) {
+  if (!kcId) return;
+  try {
+    await api('POST', `/api/staging/${currentSessionId}/schemas/${schemaId}/kcs`, { kc_ids: [kcId] });
+    toast(`${kcId} added to ${schemaId}`);
+    loadStagedSchemas();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function removeKCFromSchema(schemaId, kcId) {
+  try {
+    await api('DELETE', `/api/staging/${currentSessionId}/schemas/${schemaId}/kcs/${kcId}`);
+    toast(`${kcId} removed from ${schemaId}`);
+    loadStagedSchemas();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function editSchema(schemaId) {
+  const schema = await api('GET', `/api/staging/${currentSessionId}/schemas`);
+  const s = schema.find(x => x.id === schemaId);
+  if (!s) return;
+  const name = prompt('Schema name:', s.name);
+  if (name === null) return;
+  const desc = prompt('Description:', s.description || '');
+  if (desc === null) return;
+  const update = {};
+  if (name !== s.name) update.name = name;
+  if (desc !== (s.description || '')) update.description = desc || null;
+  if (Object.keys(update).length === 0) return;
+  try {
+    await api('PATCH', `/api/staging/${currentSessionId}/schemas/${schemaId}`, update);
+    toast(`Schema ${schemaId} updated`);
+    loadStagedSchemas();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function deleteSchema(schemaId) {
+  if (!confirm(`Delete schema ${schemaId}? KCs will be unassigned.`)) return;
+  try {
+    await api('DELETE', `/api/staging/${currentSessionId}/schemas/${schemaId}`);
+    toast(`Schema ${schemaId} deleted`);
+    loadStagedSchemas();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+// Manual schema creation
+function showCreateSchemaForm() {
+  document.getElementById('create-schema-form').classList.remove('hidden');
+}
+
+function hideCreateSchemaForm() {
+  document.getElementById('create-schema-form').classList.add('hidden');
+}
+
+async function createSchemaManually() {
+  const id = document.getElementById('manual-schema-id').value.trim();
+  const name = document.getElementById('manual-schema-name').value.trim();
+  const desc = document.getElementById('manual-schema-desc').value.trim();
+  const parent = document.getElementById('manual-schema-parent').value;
+  if (!id || !name) { toast('Schema ID and name are required.', 'error'); return; }
+  try {
+    await api('POST', `/api/staging/${currentSessionId}/schemas`, {
+      id, name, description: desc || null, parent_schema_id: parent || null
+    });
+    toast(`Schema "${name}" created`);
+    document.getElementById('manual-schema-id').value = '';
+    document.getElementById('manual-schema-name').value = '';
+    document.getElementById('manual-schema-desc').value = '';
+    document.getElementById('manual-schema-parent').value = '';
+    hideCreateSchemaForm();
+    loadStagedSchemas();
+    refreshSession();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+// Confirm all schemas and advance KCs
+async function confirmAllSchemas() {
+  try {
+    // Validate first
+    const validation = await api('POST', `/api/staging/${currentSessionId}/schemas/validate`);
+    if (!validation.valid) {
+      toast(`Cannot confirm: ${validation.message}`, 'error');
+      return;
+    }
+
+    const schemas = await api('GET', `/api/staging/${currentSessionId}/schemas`);
+    if (schemas.length === 0) { toast('No schemas to confirm.', 'error'); return; }
+
+    const allSchemaKCIds = [...new Set(schemas.flatMap(s => s.kc_ids))];
+
+    // Check for orphan KCs
+    const edgesConfirmed = await api('GET', `/api/staging/${currentSessionId}/kcs?stage_status=edges_confirmed`);
+    const orphans = edgesConfirmed.filter(k => !allSchemaKCIds.includes(k.id));
+
+    if (orphans.length > 0) {
+      if (!confirm(`${orphans.length} edge-confirmed KCs are not in any schema:\n${orphans.map(k => k.id).join(', ')}\n\nContinue anyway?`)) return;
+    }
+
+    if (!confirm(`Confirm ${schemas.length} schemas and move ${allSchemaKCIds.length} KCs to schema_assigned?`)) return;
+
+    // Confirm all schemas
+    for (const s of schemas) {
+      if (s.status !== 'confirmed') {
+        await api('PATCH', `/api/staging/${currentSessionId}/schemas/${s.id}`, { status: 'confirmed' });
+      }
+    }
+
+    // Batch-update KCs to schema_assigned
+    if (allSchemaKCIds.length > 0) {
+      await api('POST', `/api/staging/${currentSessionId}/kcs/batch-update`, {
+        kc_ids: allSchemaKCIds,
+        updates: { stage_status: 'schema_assigned' }
+      });
+    }
+
+    toast(`${schemas.length} schemas confirmed, ${allSchemaKCIds.length} KCs → schema_assigned`);
+    loadStagedSchemas();
+    refreshSession();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+// ═══════════════════════════════════════════════════════
+// AI Schema Proposals
+// ═══════════════════════════════════════════════════════
+
+async function aiProposeSchemas() {
+  if (!aiAvailable) { toast('AI is not configured. Set ANTHROPIC_API_KEY and restart.', 'error'); return; }
+  const kcs = await api('GET', `/api/staging/${currentSessionId}/kcs?stage_status=edges_confirmed`);
+  if (kcs.length === 0) { toast('No edge-confirmed KCs. Confirm edges first.', 'error'); return; }
+
+  document.getElementById('schema-ai-working').classList.remove('hidden');
+  document.getElementById('btn-ai-schemas').disabled = true;
+
+  try {
+    const result = await api('POST', `/api/staging/${currentSessionId}/ai/schemas`, {
+      kc_ids: kcs.map(k => k.id),
+    });
+
+    const raw = result.schema_proposals || {};
+    // Handle both new format {schemas, unassigned} and legacy array format
+    const proposals = Array.isArray(raw) ? raw : (raw.schemas || []);
+    const unassigned = Array.isArray(raw) ? [] : (raw.unassigned || []);
+    window._schemaProposals = proposals;
+    window._schemaUnassigned = unassigned;
+    renderSchemaProposals(proposals, kcs, unassigned);
+    toast(`Schema proposals: ${proposals.length} schemas covering ${new Set(proposals.flatMap(p => p.kc_ids)).size} KCs${unassigned.length ? `, ${unassigned.length} unassigned` : ''}`);
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+  document.getElementById('schema-ai-working').classList.add('hidden');
+  document.getElementById('btn-ai-schemas').disabled = false;
+}
+
+function renderSchemaProposals(proposals, allKCs, unassigned = []) {
+  const panel = document.getElementById('schema-proposals-panel');
+  const content = document.getElementById('schema-proposals-content');
+  panel.classList.remove('hidden');
+
+  const kcLookup = Object.fromEntries(allKCs.map(k => [k.id, k]));
+  const allProposedKCIds = new Set(proposals.flatMap(p => p.kc_ids));
+  // Merge AI-reported unassigned with any KCs missing from proposals
+  const orphanKCs = allKCs.filter(k => !allProposedKCIds.has(k.id));
+
+  const kcTip = (id) => {
+    const k = kcLookup[id];
+    if (!k) return id;
+    return k.short_description || k.source_text || id;
+  };
+
+  // Batch bar
+  let batchHtml = `
+    <div data-batch-bar style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px;padding:10px 12px;background:#f0f8f0;border-radius:8px;">
+      <span style="font-size:13px;color:#555;">${proposals.length} schemas proposed covering ${allProposedKCIds.size} KCs</span>
+      <button id="batch-accept-schemas" class="btn btn-sm btn-success" onclick="batchAcceptSchemaProposals()">Accept All Proposals</button>
+    </div>
+  `;
+
+  // Unassigned KCs notice
+  if (orphanKCs.length > 0) {
+    batchHtml += `
+      <div id="schema-orphan-warning" style="margin-bottom:12px;padding:10px 12px;background:#fef3c7;border-radius:6px;font-size:13px;color:#92400e;">
+        <strong>${orphanKCs.length} KCs not in any proposed schema</strong> — assign them manually after accepting:
+        <div style="margin-top:6px;margin-left:4px;">
+          ${orphanKCs.map(k => `
+            <div style="padding:2px 0;"><code style="font-size:12px;">${k.id}</code> — ${escapeHtml(k.short_description || k.source_text || '')}</div>
+          `).join('')}
+        </div>
+      </div>
+    `;
+  }
+
+  // Sort proposals: parents first, then children grouped under their parent
+  const parentNames = new Set(proposals.filter(p => !p.parent_schema).map(p => p.name));
+  const ordered = [];
+  // First add top-level schemas, each followed by its children
+  for (let i = 0; i < proposals.length; i++) {
+    const p = proposals[i];
+    if (!p.parent_schema) {
+      ordered.push({ ...p, _idx: i, _depth: 0 });
+      // Find children of this schema
+      for (let j = 0; j < proposals.length; j++) {
+        if (proposals[j].parent_schema === p.name) {
+          ordered.push({ ...proposals[j], _idx: j, _depth: 1 });
+        }
+      }
+    }
+  }
+  // Add any orphan children whose parent wasn't found (shouldn't happen but just in case)
+  for (let i = 0; i < proposals.length; i++) {
+    if (proposals[i].parent_schema && !parentNames.has(proposals[i].parent_schema) &&
+        !ordered.some(o => o._idx === i)) {
+      ordered.push({ ...proposals[i], _idx: i, _depth: 0 });
+    }
+  }
+
+  function renderProposalCard(p) {
+    const idx = p._idx;
+    const indent = p._depth > 0 ? 'margin-left:28px;border-left-color:var(--success);' : '';
+    const parentLabel = p._depth > 0 ? '' : (
+      proposals.some(c => c.parent_schema === p.name)
+        ? `<span class="badge" style="background:#e0e7ff;color:#3730a3;margin-left:6px;">parent</span>`
+        : ''
+    );
+    const childLabel = p._depth > 0
+      ? `<span class="badge" style="background:#dbeafe;color:#1e40af;margin-left:6px;">child of ${escapeHtml(p.parent_schema)}</span>`
+      : '';
+    return `
+      <div class="kc-detail" id="schema-proposal-${idx}" style="border-left:3px solid var(--primary);${indent}">
+        <div class="kc-header">
+          <span class="kc-id">${escapeHtml(p.name)}</span>
+          <span class="badge badge-proposed">${p.kc_ids.length} KCs</span>
+          ${parentLabel}${childLabel}
+        </div>
+        <div class="schema-proposal-body">
+          ${p.description ? `<div class="kc-desc">${escapeHtml(p.description)}</div>` : ''}
+          <div style="margin-top:6px;">
+            <div class="meta" style="margin-bottom:4px;">KCs:</div>
+            <div style="margin-left:4px;">${p.kc_ids.map(id => `
+              <div style="display:flex;align-items:baseline;gap:6px;padding:2px 0;font-size:13px;">
+                <code style="font-size:12px;white-space:nowrap;color:var(--primary);">${id}</code>
+                <span>${escapeHtml(kcTip(id))}</span>
+              </div>
+            `).join('')}</div>
+          </div>
+          <div class="kc-actions">
+            <button class="btn btn-sm btn-success" onclick="acceptSchemaProposal(${idx})">Accept</button>
+            <button class="btn btn-sm btn-outline" onclick="editSchemaProposal(${idx})">Edit</button>
+            <button class="btn btn-sm btn-danger" onclick="rejectSchemaProposal(${idx})">Reject</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  const cardsHtml = ordered.map(renderProposalCard).join('');
+
+  document.getElementById('schema-proposals-title').textContent = `AI Schema Proposals — ${proposals.length} schemas`;
+  content.innerHTML = batchHtml + cardsHtml;
+}
+
+function slugify(name) {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').substring(0, 50);
+}
+
+async function acceptSchemaProposal(idx) {
+  const p = window._schemaProposals[idx];
+  if (!p) return;
+  const schemaId = slugify(p.name);
+
+  // Resolve parent_schema name to ID if needed
+  let parentId = null;
+  if (p.parent_schema) {
+    // Try to find already-accepted schema by name
+    const schemas = await api('GET', `/api/staging/${currentSessionId}/schemas`);
+    const parent = schemas.find(s => s.name === p.parent_schema);
+    parentId = parent ? parent.id : null;
+  }
+
+  try {
+    await api('POST', `/api/staging/${currentSessionId}/schemas`, {
+      id: schemaId,
+      name: p.name,
+      description: p.description || null,
+      parent_schema_id: parentId,
+    });
+    if (p.kc_ids.length > 0) {
+      await api('POST', `/api/staging/${currentSessionId}/schemas/${schemaId}/kcs`, {
+        kc_ids: p.kc_ids,
+      });
+    }
+    markSchemaProposalResolved(idx, 'Accepted', 'var(--success)');
+    toast(`Schema "${p.name}" created with ${p.kc_ids.length} KCs`);
+    loadStagedSchemas();
+    refreshSession();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+function rejectSchemaProposal(idx) {
+  markSchemaProposalResolved(idx, 'Rejected', 'var(--danger)');
+}
+
+function editSchemaProposal(idx) {
+  const p = window._schemaProposals[idx];
+  if (!p) return;
+  const card = document.getElementById(`schema-proposal-${idx}`);
+  const body = card.querySelector('.schema-proposal-body');
+
+  // Build KC options from all eligible KCs not in this proposal
+  const allKCIds = Object.keys(_schemaKCCache);
+  const inProposal = new Set(p.kc_ids);
+  const otherProposalKCIds = new Set();
+  window._schemaProposals.forEach((op, i) => {
+    if (i !== idx) op.kc_ids.forEach(id => otherProposalKCIds.add(id));
+  });
+
+  body.innerHTML = `
+    <div class="form-row">
+      <div class="form-group" style="flex:1">
+        <label>Name</label>
+        <input type="text" id="edit-schema-name-${idx}" value="${escapeHtml(p.name)}">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group" style="flex:1">
+        <label>Description</label>
+        <textarea id="edit-schema-desc-${idx}">${escapeHtml(p.description || '')}</textarea>
+      </div>
+    </div>
+    <div style="margin-top:8px;">
+      <label style="font-size:12px;font-weight:500;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;">KCs in this schema:</label>
+      <div id="edit-schema-kcs-${idx}" style="margin-top:4px;">
+        ${p.kc_ids.map(id => `
+          <span style="display:inline-block;padding:2px 6px;background:var(--bg);border:1px solid var(--border);border-radius:4px;font-size:12px;font-family:monospace;margin:2px;">
+            ${id}
+            <span onclick="removeKCFromProposal(${idx},'${id}')" style="cursor:pointer;color:var(--danger);margin-left:4px;">&times;</span>
+          </span>
+        `).join('')}
+      </div>
+      <select onchange="addKCToProposal(${idx}, this.value); this.value='';" style="font-size:12px;margin-top:4px;">
+        <option value="">+ Add KC...</option>
+        ${Object.values(_schemaKCCache)
+          .filter(k => !inProposal.has(k.id) && ['edges_confirmed', 'schema_assigned'].includes(k.stage_status))
+          .map(k => `<option value="${k.id}">${k.id} — ${escapeHtml((k.short_description || '').substring(0, 50))}</option>`)
+          .join('')}
+      </select>
+    </div>
+    <div class="kc-actions" style="margin-top:8px;">
+      <button class="btn btn-sm btn-success" onclick="acceptSchemaProposal(${idx})">Accept Modified</button>
+      <button class="btn btn-sm btn-outline" onclick="cancelEditProposal(${idx})">Cancel</button>
+    </div>
+  `;
+}
+
+function addKCToProposal(idx, kcId) {
+  if (!kcId) return;
+  const p = window._schemaProposals[idx];
+  if (!p || p.kc_ids.includes(kcId)) return;
+  p.kc_ids.push(kcId);
+  editSchemaProposal(idx); // re-render edit form
+}
+
+function removeKCFromProposal(idx, kcId) {
+  const p = window._schemaProposals[idx];
+  if (!p) return;
+  p.kc_ids = p.kc_ids.filter(id => id !== kcId);
+  editSchemaProposal(idx); // re-render edit form
+}
+
+function cancelEditProposal(idx) {
+  // Re-render the original proposal card (non-edit view)
+  // Easiest: re-fetch and re-render just this card
+  const p = window._schemaProposals[idx];
+  if (!p) return;
+  const card = document.getElementById(`schema-proposal-${idx}`);
+  const kcTip = (id) => {
+    const k = _schemaKCCache[id];
+    if (!k) return id;
+    return k.short_description || k.source_text || id;
+  };
+  card.querySelector('.schema-proposal-body').innerHTML = `
+    ${p.description ? `<div class="kc-desc">${escapeHtml(p.description)}</div>` : ''}
+    <div style="margin-top:6px;">
+      <div class="meta" style="margin-bottom:4px;">KCs:</div>
+      <div style="margin-left:4px;">${p.kc_ids.map(id => `
+        <div style="display:flex;align-items:baseline;gap:6px;padding:2px 0;font-size:13px;">
+          <code style="font-size:12px;white-space:nowrap;color:var(--primary);">${id}</code>
+          <span>${escapeHtml(kcTip(id))}</span>
+        </div>
+      `).join('')}</div>
+    </div>
+    <div class="kc-actions">
+      <button class="btn btn-sm btn-success" onclick="acceptSchemaProposal(${idx})">Accept</button>
+      <button class="btn btn-sm btn-outline" onclick="editSchemaProposal(${idx})">Edit</button>
+      <button class="btn btn-sm btn-danger" onclick="rejectSchemaProposal(${idx})">Reject</button>
+    </div>
+  `;
+}
+
+async function batchAcceptSchemaProposals() {
+  const proposals = window._schemaProposals || [];
+  // Find unresolved proposals — process parents before children
+  const panel = document.getElementById('schema-proposals-content');
+  const unresolvedIdxs = [];
+  // Parents first (no parent_schema), then children
+  proposals.forEach((p, idx) => {
+    if (!p.parent_schema) {
+      const card = document.getElementById(`schema-proposal-${idx}`);
+      if (card && card.querySelector('.kc-actions button.btn')) unresolvedIdxs.push(idx);
+    }
+  });
+  proposals.forEach((p, idx) => {
+    if (p.parent_schema) {
+      const card = document.getElementById(`schema-proposal-${idx}`);
+      if (card && card.querySelector('.kc-actions button.btn')) unresolvedIdxs.push(idx);
+    }
+  });
+
+  if (unresolvedIdxs.length === 0) { toast('No unresolved proposals.'); return; }
+  if (!confirm(`Accept ${unresolvedIdxs.length} remaining schema proposals?`)) return;
+
+  let accepted = 0;
+  for (const idx of unresolvedIdxs) {
+    try {
+      await acceptSchemaProposal(idx);
+      accepted++;
+    } catch (e) {
+      markSchemaProposalResolved(idx, 'Error', 'var(--danger)');
+    }
+  }
+  markBatchBtnDone('batch-accept-schemas', `All ${accepted} schemas accepted`);
+  toast(`${accepted} schemas accepted`);
+}
+
+function markSchemaProposalResolved(idx, label, color) {
+  const card = document.getElementById(`schema-proposal-${idx}`);
+  if (!card) return;
+  const actions = card.querySelector('.kc-actions');
+  if (actions) {
+    actions.innerHTML = `<span class="badge" style="background:${color || 'var(--success)'};color:white;padding:4px 10px;">${label || 'Done'}</span>`;
+  }
+  card.style.opacity = '0.7';
+  checkSchemaProposalsAllDone();
+}
+
+function checkSchemaProposalsAllDone() {
+  const panel = document.getElementById('schema-proposals-content');
+  if (!panel) return;
+  const remaining = panel.querySelectorAll('.kc-actions button.btn');
+  const batchBtns = panel.querySelectorAll('[data-batch-bar] button.btn');
+  if (remaining.length === 0 && batchBtns.length === 0) {
+    setTimeout(() => {
+      dismissSchemaProposals();
+    }, 800);
+  }
+}
+
+function dismissSchemaProposals() {
+  document.getElementById('schema-proposals-panel').classList.add('hidden');
+  loadStagedSchemas();
+}
+
+// ═══════════════════════════════════════════════════════
+// Graph Visualization
+// ═══════════════════════════════════════════════════════
+
+let cyInstance = null;
+
+const statusColors = {
+  proposed:        { bg: '#fbbf24', border: '#d97706', text: '#78350f' },
+  grain_approved:  { bg: '#60a5fa', border: '#2563eb', text: '#1e3a5f' },
+  formulated:      { bg: '#34d399', border: '#059669', text: '#064e3b' },
+  edges_confirmed: { bg: '#818cf8', border: '#4f46e5', text: '#312e81' },
+  schema_assigned: { bg: '#a78bfa', border: '#7c3aed', text: '#4c1d95' },
+};
+
+const statusRank = { proposed: 0, grain_approved: 1, formulated: 2, edges_confirmed: 3, schema_assigned: 4 };
+
+async function loadGraph() {
+  if (!currentSessionId) return;
+  try {
+    const [kcs, edges, schemas] = await Promise.all([
+      api('GET', `/api/staging/${currentSessionId}/kcs`),
+      api('GET', `/api/staging/${currentSessionId}/edges`),
+      api('GET', `/api/staging/${currentSessionId}/schemas`),
+    ]);
+
+    // Filter out stale KCs
+    let activeKCs = kcs.filter(kc => kc.stage_status !== 'stale');
+
+    // Apply status filter
+    const filter = document.getElementById('graph-status-filter').value;
+    if (filter) {
+      const minRank = statusRank[filter] || 0;
+      activeKCs = activeKCs.filter(kc => (statusRank[kc.stage_status] || 0) >= minRank);
+    }
+
+    const kcIds = new Set(activeKCs.map(kc => kc.id));
+
+    // Only show confirmed or proposed edges between visible KCs
+    const activeEdges = edges.filter(e =>
+      e.status !== 'rejected' &&
+      kcIds.has(e.source_kc_id) &&
+      kcIds.has(e.target_kc_id)
+    );
+
+    renderGraph(activeKCs, activeEdges, schemas);
+  } catch (e) {
+    toast('Failed to load graph: ' + e.message, 'error');
+  }
+}
+
+function renderGraph(kcs, edges, schemas) {
+  const container = document.getElementById('cy-container');
+  const schemaToggle = document.getElementById('graph-schema-toggle');
+  const showSchemas = schemaToggle && schemaToggle.checked && schemas && schemas.length > 0;
+
+  // Build KC-to-schema lookup and schema compound nodes
+  const kcToSchema = {};
+  const schemaNodes = [];
+  const visibleKcIds = new Set(kcs.map(kc => kc.id));
+
+  if (showSchemas) {
+    // Find which schemas have at least one visible KC (or a child schema that does)
+    const schemasWithVisibleKCs = new Set();
+    for (const s of schemas) {
+      if (s.kc_ids && s.kc_ids.some(id => visibleKcIds.has(id))) {
+        schemasWithVisibleKCs.add(s.id);
+        // Walk up parent chain
+        let parentId = s.parent_schema_id;
+        while (parentId) {
+          schemasWithVisibleKCs.add(parentId);
+          const parentSchema = schemas.find(x => x.id === parentId);
+          parentId = parentSchema ? parentSchema.parent_schema_id : null;
+        }
+      }
+    }
+
+    // Build KC-to-schema mapping (only leaf schemas assign KCs)
+    for (const s of schemas) {
+      if (!schemasWithVisibleKCs.has(s.id)) continue;
+      if (s.kc_ids) {
+        for (const kcId of s.kc_ids) {
+          if (visibleKcIds.has(kcId)) {
+            kcToSchema[kcId] = `schema-${s.id}`;
+          }
+        }
+      }
+    }
+
+    // Create compound nodes for visible schemas (parents before children)
+    // Sort: schemas without parents first, then children
+    const sorted = schemas
+      .filter(s => schemasWithVisibleKCs.has(s.id))
+      .sort((a, b) => {
+        if (!a.parent_schema_id && b.parent_schema_id) return -1;
+        if (a.parent_schema_id && !b.parent_schema_id) return 1;
+        return 0;
+      });
+
+    for (const s of sorted) {
+      const nodeData = {
+        id: `schema-${s.id}`,
+        label: s.name,
+        isSchema: true,
+        schemaId: s.id,
+        description: s.description || '',
+        status: s.status,
+        kcCount: s.kc_ids ? s.kc_ids.filter(id => visibleKcIds.has(id)).length : 0,
+      };
+      if (s.parent_schema_id && schemasWithVisibleKCs.has(s.parent_schema_id)) {
+        nodeData.parent = `schema-${s.parent_schema_id}`;
+      }
+      schemaNodes.push({ data: nodeData });
+    }
+  }
+
+  // Build KC nodes
+  const nodes = kcs.map(kc => {
+    const colors = statusColors[kc.stage_status] || statusColors.proposed;
+    const nodeData = {
+      id: kc.id,
+      label: '',
+      fullId: kc.id,
+      description: kc.short_description || kc.source_text || '',
+      status: kc.stage_status,
+      sourceText: kc.source_text || '',
+      bgColor: colors.bg,
+      borderColor: colors.border,
+      textColor: colors.text,
+    };
+    if (kcToSchema[kc.id]) {
+      nodeData.parent = kcToSchema[kc.id];
+    }
+    return { data: nodeData };
+  });
+
+  const edgeEls = edges.map((e, i) => ({
+    data: {
+      id: `e${i}`,
+      source: e.source_kc_id,
+      target: e.target_kc_id,
+      reasoning: e.ai_reasoning || '',
+      status: e.status,
+    }
+  }));
+
+  // Destroy previous instance
+  if (cyInstance) {
+    cyInstance.destroy();
+    cyInstance = null;
+  }
+
+  if (nodes.length === 0) {
+    container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-muted);font-size:14px;">No KCs to display. Ingest documents and run AI analysis first.</div>';
+    return;
+  }
+
+  cyInstance = cytoscape({
+    container: container,
+    elements: [...schemaNodes, ...nodes, ...edgeEls],
+    style: [
+      {
+        selector: 'node[?isSchema]',
+        style: {
+          'background-color': '#f0f4ff',
+          'background-opacity': 0.5,
+          'border-color': '#93a3cf',
+          'border-width': 2,
+          'border-style': 'dashed',
+          'shape': 'roundrectangle',
+          'padding': '20px',
+          'label': 'data(label)',
+          'text-valign': 'top',
+          'text-halign': 'center',
+          'font-size': '12px',
+          'font-weight': 'bold',
+          'color': '#475569',
+          'text-margin-y': -6,
+        }
+      },
+      {
+        selector: 'node[?isSchema]:selected',
+        style: {
+          'border-width': 3,
+          'border-color': '#2563eb',
+          'background-color': '#dbeafe',
+        }
+      },
+      {
+        selector: 'node[!isSchema]',
+        style: {
+          'background-color': 'data(bgColor)',
+          'border-color': 'data(borderColor)',
+          'border-width': 2,
+          'label': '',
+          'width': 30,
+          'height': 30,
+          'shape': 'roundrectangle',
+        }
+      },
+      {
+        selector: 'node[!isSchema]:selected',
+        style: {
+          'border-width': 4,
+          'border-color': '#1d4ed8',
+          'overlay-color': '#2563eb',
+          'overlay-opacity': 0.15,
+        }
+      },
+      {
+        selector: 'edge',
+        style: {
+          'width': 1.5,
+          'line-color': '#94a3b8',
+          'target-arrow-color': '#64748b',
+          'target-arrow-shape': 'triangle',
+          'curve-style': 'bezier',
+          'arrow-scale': 0.8,
+        }
+      },
+      {
+        selector: 'edge[status="confirmed"]',
+        style: {
+          'line-color': '#059669',
+          'target-arrow-color': '#059669',
+          'width': 2,
+        }
+      },
+      {
+        selector: 'edge:selected',
+        style: {
+          'width': 3,
+          'line-color': '#2563eb',
+          'target-arrow-color': '#2563eb',
+        }
+      },
+    ],
+    layout: {
+      name: 'dagre',
+      rankDir: 'TB',
+      nodeSep: showSchemas ? 30 : 50,
+      rankSep: showSchemas ? 100 : 80,
+      padding: 30,
+    },
+    minZoom: 0.2,
+    maxZoom: 3,
+    wheelSensitivity: 0.3,
+  });
+
+  // Click handler for nodes
+  cyInstance.on('tap', 'node', function(evt) {
+    const d = evt.target.data();
+    const infoPanel = document.getElementById('graph-info-panel');
+    const infoTitle = document.getElementById('graph-info-title');
+    const infoBody = document.getElementById('graph-info-body');
+
+    infoPanel.classList.remove('hidden');
+
+    if (d.isSchema) {
+      // Schema click
+      infoTitle.textContent = `Schema: ${d.label}`;
+      let html = `<div style="margin-bottom:6px;"><span class="badge badge-${d.status}">${d.status}</span></div>`;
+      if (d.description) html += `<div style="margin-bottom:8px;">${escapeHtml(d.description)}</div>`;
+      // List visible child KCs
+      const childKCs = evt.target.children().filter(n => !n.data('isSchema'));
+      const childSchemas = evt.target.children().filter(n => n.data('isSchema'));
+      if (childSchemas.length > 0) {
+        html += `<div style="margin-bottom:4px;"><strong>Child schemas (${childSchemas.length}):</strong> ${childSchemas.map(n => escapeHtml(n.data('label'))).join(', ')}</div>`;
+      }
+      html += `<div style="margin-bottom:4px;"><strong>KCs in this schema:</strong> ${childKCs.length}</div>`;
+      if (childKCs.length > 0) {
+        html += `<div style="font-size:12px;">${childKCs.map(n => `<code>${escapeHtml(n.data('fullId'))}</code>`).join(', ')}</div>`;
+      }
+      infoBody.innerHTML = html;
+      return;
+    }
+
+    // KC click
+    infoTitle.textContent = d.fullId;
+
+    // Find predecessors and successors
+    const preds = evt.target.incomers('node').map(n => n.data('fullId'));
+    const succs = evt.target.outgoers('node').map(n => n.data('fullId'));
+
+    let html = `<div style="margin-bottom:6px;"><span class="badge badge-${d.status}">${d.status}</span></div>`;
+    if (d.description) html += `<div style="margin-bottom:8px;">${escapeHtml(d.description)}</div>`;
+    if (d.sourceText) html += `<div style="background:#fffbeb;padding:6px 10px;border-radius:4px;border-left:3px solid var(--warning);margin-bottom:8px;font-size:12px;">${escapeHtml(d.sourceText)}</div>`;
+    if (preds.length) html += `<div style="margin-bottom:4px;"><strong>Prerequisites (${preds.length}):</strong> ${preds.map(p => `<code>${escapeHtml(p)}</code>`).join(', ')}</div>`;
+    if (succs.length) html += `<div><strong>Leads to (${succs.length}):</strong> ${succs.map(s => `<code>${escapeHtml(s)}</code>`).join(', ')}</div>`;
+    if (!preds.length && !succs.length) html += `<div style="color:var(--text-muted);font-style:italic;">No edges connected yet.</div>`;
+
+    infoBody.innerHTML = html;
+  });
+
+  // Click handler for edges
+  cyInstance.on('tap', 'edge', function(evt) {
+    const d = evt.target.data();
+    const infoPanel = document.getElementById('graph-info-panel');
+    const infoTitle = document.getElementById('graph-info-title');
+    const infoBody = document.getElementById('graph-info-body');
+
+    infoPanel.classList.remove('hidden');
+    infoTitle.textContent = `Edge: ${d.source} → ${d.target}`;
+    let html = `<div style="margin-bottom:6px;"><span class="badge badge-${d.status}">${d.status}</span></div>`;
+    if (d.reasoning) html += `<div style="font-style:italic;color:var(--text-muted);">${escapeHtml(d.reasoning)}</div>`;
+    infoBody.innerHTML = html;
+  });
+
+  // Click background to dismiss info panel
+  cyInstance.on('tap', function(evt) {
+    if (evt.target === cyInstance) {
+      document.getElementById('graph-info-panel').classList.add('hidden');
+    }
+  });
+
+  // Hover tooltip for nodes
+  const tooltip = document.getElementById('graph-tooltip');
+  cyInstance.on('mouseover', 'node', function(evt) {
+    const d = evt.target.data();
+    if (d.isSchema) {
+      tooltip.innerHTML = `<div class="tooltip-id">${escapeHtml(d.label)}</div><div class="tooltip-desc">${d.description ? escapeHtml(d.description) : d.kcCount + ' KCs'}</div>`;
+    } else {
+      const desc = d.description || d.sourceText || '(no description)';
+      tooltip.innerHTML = `<div class="tooltip-id">${escapeHtml(d.fullId)}</div><div class="tooltip-desc">${escapeHtml(desc)}</div>`;
+    }
+    tooltip.style.display = 'block';
+    const pos = evt.renderedPosition;
+    const containerRect = container.getBoundingClientRect();
+    let left = pos.x + 15;
+    let top = pos.y - 10;
+    // Keep tooltip inside container
+    if (left + 360 > containerRect.width) left = pos.x - 375;
+    if (top < 0) top = 10;
+    tooltip.style.left = left + 'px';
+    tooltip.style.top = top + 'px';
+  });
+
+  cyInstance.on('mouseout', 'node', function() {
+    tooltip.style.display = 'none';
+  });
+
+  // Update tooltip position as user pans/zooms
+  cyInstance.on('mousemove', 'node', function(evt) {
+    const pos = evt.renderedPosition;
+    const containerRect = container.getBoundingClientRect();
+    let left = pos.x + 15;
+    let top = pos.y - 10;
+    if (left + 360 > containerRect.width) left = pos.x - 375;
+    if (top < 0) top = 10;
+    tooltip.style.left = left + 'px';
+    tooltip.style.top = top + 'px';
+  });
+}
+
+function graphFitAll() {
+  if (cyInstance) {
+    cyInstance.fit(undefined, 30);
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// Utilities
+// ═══════════════════════════════════════════════════════
+
+function escapeHtml(text) {
+  const el = document.createElement('span');
+  el.textContent = text || '';
+  return el.innerHTML;
+}
+
+// Init
+loadSessions();
+</script>
+
+<!-- Conversation Side Panel -->
+<div id="conv-panel" class="conv-panel">
+  <div class="conv-panel-header">
+    <h3 id="conv-kc-title">Discuss KC</h3>
+    <button class="btn btn-sm btn-outline" onclick="closeConversation()">&times; Close</button>
+  </div>
+  <div class="conv-panel-context" id="conv-context"></div>
+  <div class="conv-messages" id="conv-messages"></div>
+  <div class="conv-input-area">
+    <textarea id="conv-input" placeholder="Ask about this KC's grain size..."
+              onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendConversationMessage();}"></textarea>
+    <button class="btn btn-primary btn-sm" onclick="sendConversationMessage()" id="conv-send-btn">Send</button>
+  </div>
+</div>
+
+<script>
+// ── Conversation Side Panel ──
+let currentConversationKcId = null;
+let conversationKcIds = new Set();
+let _seededAnalysis = null; // Grain review analysis shown before first user message
+
+async function loadConversationBadges() {
+  if (!currentSessionId) return;
+  try {
+    const result = await api('GET', `/api/staging/${currentSessionId}/conversations`);
+    conversationKcIds = new Set(result.kc_ids_with_conversations || []);
+  } catch (e) {
+    conversationKcIds = new Set();
+  }
+}
+
+async function openConversation(kcId, initialAnalysis) {
+  currentConversationKcId = kcId;
+  _seededAnalysis = null;
+  const panel = document.getElementById('conv-panel');
+  const msgContainer = document.getElementById('conv-messages');
+
+  document.getElementById('conv-kc-title').textContent = 'Discuss: ' + kcId;
+
+  // Populate context
+  try {
+    const kc = await api('GET', `/api/staging/${currentSessionId}/kcs/${kcId}`);
+    document.getElementById('conv-context').innerHTML =
+      '<div><strong>' + escapeHtml(kcId) + '</strong> ' +
+      '<span class="badge badge-' + kc.stage_status + '">' + kc.stage_status.replace(/_/g, ' ') + '</span></div>' +
+      (kc.source_reference ? '<div style="color:var(--text-muted);font-size:12px;margin-top:2px;">' + escapeHtml(kc.source_reference) + '</div>' : '') +
+      (kc.source_text ? '<div class="context-source">' + escapeHtml(kc.source_text) + '</div>' : '');
+  } catch (e) {
+    document.getElementById('conv-context').innerHTML = '<div><strong>' + escapeHtml(kcId) + '</strong></div>';
+  }
+
+  // Load existing conversation
+  msgContainer.innerHTML = '';
+  try {
+    const conv = await api('GET', `/api/staging/${currentSessionId}/kcs/${kcId}/conversation`);
+    if (conv.messages && conv.messages.length > 0) {
+      conv.messages.forEach(function(m) { appendConvMessage(m.role, m.content, m.timestamp); });
+    } else if (initialAnalysis) {
+      _seededAnalysis = initialAnalysis;
+      appendConvMessage('assistant', initialAnalysis, new Date().toISOString());
+      msgContainer.insertAdjacentHTML('beforeend',
+        '<div style="text-align:center;color:var(--text-muted);padding:6px;font-size:12px;">Send a message to start the conversation. The AI has full context about this KC.</div>');
+    } else {
+      msgContainer.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:20px;font-size:13px;">No conversation yet. Send a message to start discussing this KC.</div>';
+    }
+  } catch (e) {
+    if (initialAnalysis) {
+      _seededAnalysis = initialAnalysis;
+      appendConvMessage('assistant', initialAnalysis, new Date().toISOString());
+    }
+  }
+
+  panel.classList.add('open');
+  document.body.classList.add('conv-open');
+  document.getElementById('conv-input').focus();
+  scrollConversation();
+}
+
+function appendConvMessage(role, content, timestamp, action) {
+  const msgContainer = document.getElementById('conv-messages');
+  // Remove placeholders
+  var ph = msgContainer.querySelector('div[style*="text-align:center"]');
+  if (ph) ph.remove();
+
+  // Strip ACTION block from display text
+  var displayContent = content.replace(/\[ACTION:\w+\][\s\S]*?\[\/ACTION\]/g, '').trim();
+
+  var div = document.createElement('div');
+  div.className = 'conv-msg ' + role;
+  var timeStr = timestamp ? new Date(timestamp).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}) : '';
+  div.innerHTML = escapeHtml(displayContent) + '<div class="msg-time">' + timeStr + '</div>';
+
+  // Render action buttons if present
+  if (action && role === 'assistant') {
+    var actionDiv = document.createElement('div');
+    actionDiv.className = 'conv-action-bar';
+    actionDiv.style.cssText = 'margin-top:8px;padding:8px 10px;background:#f0f8f0;border-radius:6px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;';
+
+    if (action.type === 'split' && action.children && action.children.length > 0) {
+      var childrenJson = JSON.stringify(action.children);
+      actionDiv.innerHTML =
+        '<span style="font-size:12px;color:#555;">Split into ' + action.children.length + ' KCs:</span>' +
+        '<button class="btn btn-sm btn-success" onclick=\'applyConversationSplit(' + JSON.stringify(childrenJson) + ')\' style="background:var(--warning);border-color:var(--warning)">Apply Split</button>' +
+        '<button class="btn btn-sm btn-outline" onclick="this.parentElement.remove()">Dismiss</button>';
+    } else if (action.type === 'approve') {
+      actionDiv.innerHTML =
+        '<span style="font-size:12px;color:#555;">Approve grain size:</span>' +
+        '<button class="btn btn-sm btn-success" onclick="applyConversationApprove()">Apply Approval</button>' +
+        '<button class="btn btn-sm btn-outline" onclick="this.parentElement.remove()">Dismiss</button>';
+    }
+    div.appendChild(actionDiv);
+  }
+
+  msgContainer.appendChild(div);
+  scrollConversation();
+}
+
+function scrollConversation() {
+  var c = document.getElementById('conv-messages');
+  c.scrollTop = c.scrollHeight;
+}
+
+async function sendConversationMessage() {
+  var input = document.getElementById('conv-input');
+  var message = input.value.trim();
+  if (!message || !currentConversationKcId) return;
+
+  input.value = '';
+  input.disabled = true;
+  document.getElementById('conv-send-btn').disabled = true;
+
+  // Remove the seeded-analysis hint
+  var hints = document.querySelectorAll('#conv-messages div[style*="text-align:center"]');
+  hints.forEach(function(h) { h.remove(); });
+
+  appendConvMessage('user', message, new Date().toISOString());
+
+  // Typing indicator
+  var typing = document.createElement('div');
+  typing.className = 'conv-typing';
+  typing.id = 'conv-typing';
+  typing.textContent = 'AI is thinking...';
+  document.getElementById('conv-messages').appendChild(typing);
+  scrollConversation();
+
+  try {
+    var result = await api('POST', `/api/staging/${currentSessionId}/kcs/${currentConversationKcId}/conversation`, {
+      message: message,
+    });
+
+    var el = document.getElementById('conv-typing');
+    if (el) el.remove();
+
+    appendConvMessage('assistant', result.content, result.timestamp, result.action);
+    conversationKcIds.add(currentConversationKcId);
+    _seededAnalysis = null;
+  } catch (e) {
+    var el2 = document.getElementById('conv-typing');
+    if (el2) el2.remove();
+    appendConvMessage('assistant', 'Error: ' + e.message, new Date().toISOString());
+  }
+
+  input.disabled = false;
+  document.getElementById('conv-send-btn').disabled = false;
+  input.focus();
+}
+
+async function applyConversationSplit(childrenJson) {
+  var children = JSON.parse(childrenJson);
+  var kcId = currentConversationKcId;
+  if (!kcId) { toast('No KC selected', 'error'); return; }
+  if (!confirm('Split ' + kcId + ' into ' + children.length + ' new KCs?\n\n' + children.map(function(s,i) { return (i+1) + '. ' + s; }).join('\n'))) return;
+  try {
+    var result = await api('POST', '/api/staging/' + currentSessionId + '/kcs/' + kcId + '/split', { children: children });
+    toast(kcId + ' split into ' + result.children.length + ' KCs: ' + result.children.map(function(c) { return c.id; }).join(', '));
+    markAICardResolved(kcId, 'Split → ' + result.children.length + ' KCs (via discussion)', 'var(--warning)');
+    closeConversation();
+    loadStagedKCs();
+    refreshSession();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function applyConversationApprove() {
+  var kcId = currentConversationKcId;
+  if (!kcId) { toast('No KC selected', 'error'); return; }
+  try {
+    await api('PATCH', '/api/staging/' + currentSessionId + '/kcs/' + kcId, { stage_status: 'grain_approved' });
+    toast(kcId + ' → grain_approved');
+    markAICardResolved(kcId, 'Approved (via discussion)', 'var(--success)');
+    closeConversation();
+    loadStagedKCs();
+    refreshSession();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+function closeConversation() {
+  currentConversationKcId = null;
+  _seededAnalysis = null;
+  document.getElementById('conv-panel').classList.remove('open');
+  document.body.classList.remove('conv-open');
+}
+
+// Close on Escape
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape' && document.getElementById('conv-panel').classList.contains('open')) {
+    closeConversation();
+  }
+});
+</script>
+
+</body>
+</html>

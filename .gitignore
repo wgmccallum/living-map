@@ -1,0 +1,46 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+*.egg-info/
+
+# Node
+frontend/node_modules/
+
+# Built frontend (rebuilt on deploy)
+living_map/static/
+
+# Database copies (keep only living_map.db)
+living_map.seed.db
+living_map.live.db
+living_map*.db-shm
+living_map*.db-wal
+sandboxes/
+staging.db
+staging.db-shm
+staging.db-wal
+
+# Mac Mini deployment (not needed on Railway)
+com.livingmap.server.plist
+start-server.sh
+get-url.sh
+publish.sh
+
+# Logs
+logs/
+
+# Claude Code config
+.claude/
+
+# OS files
+.DS_Store
+*.swp
+*~
+
+# IDE
+.vscode/
+.idea/
+
+# Temp Office files
+~$*
