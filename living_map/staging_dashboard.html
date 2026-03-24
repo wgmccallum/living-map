@@ -120,11 +120,13 @@
   .kc-ref:hover .kc-tooltip { display: block; }
 
   /* Graph tab */
+  .graph-layout { display: flex; gap: 12px; }
+  .graph-main { flex: 1; min-width: 0; position: relative; }
   #cy-container { width: 100%; height: 600px; border: 1px solid var(--border); border-radius: var(--radius); background: #fafbfc; }
   .graph-toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
   .graph-legend { display: flex; gap: 12px; align-items: center; font-size: 12px; color: var(--text-muted); margin-left: auto; }
   .graph-legend .swatch { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 4px; vertical-align: middle; }
-  #graph-info-panel { margin-top: 12px; padding: 14px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg); font-size: 13px; }
+  #graph-info-panel { width: 280px; flex-shrink: 0; padding: 14px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg); font-size: 13px; align-self: flex-start; max-height: 600px; overflow-y: auto; }
   #graph-info-panel .info-title { font-weight: 600; margin-bottom: 6px; }
 
   /* Conversation Side Panel */
@@ -474,6 +476,8 @@
           <div class="graph-toolbar">
             <button class="btn btn-sm btn-primary" onclick="loadGraph()">Refresh Graph</button>
             <button class="btn btn-sm btn-outline" onclick="graphFitAll()">Fit All</button>
+            <button id="graph-add-edge-btn" class="btn btn-sm btn-outline" onclick="toggleGraphAddEdge()">Add Edge</button>
+            <span id="graph-add-edge-status" style="font-size:12px;color:var(--primary);font-weight:500;"></span>
             <select id="graph-status-filter" onchange="loadGraph()" style="font-size:13px;">
               <option value="">All Non-Stale KCs</option>
               <option value="proposed">Proposed Only</option>
@@ -491,15 +495,19 @@
               <span><span class="swatch" style="background:#34d399"></span>Formulated</span>
               <span><span class="swatch" style="background:#818cf8"></span>Edges OK</span>
               <span><span class="swatch" style="background:#a78bfa"></span>Schema OK</span>
+              <span style="margin-left:8px;border-left:1px solid #ddd;padding-left:8px;"><span class="swatch" style="background:#d97706;width:16px;height:3px;border-radius:0;border-top:2px dashed #d97706;background:transparent;"></span>Edge proposed</span>
+              <span><span class="swatch" style="background:#059669;width:16px;height:3px;border-radius:0;"></span>Edge confirmed</span>
             </div>
           </div>
-          <div style="position:relative;">
-            <div id="cy-container"></div>
-            <div id="graph-tooltip"></div>
-          </div>
-          <div id="graph-info-panel" class="hidden">
-            <div class="info-title" id="graph-info-title"></div>
-            <div id="graph-info-body"></div>
+          <div class="graph-layout">
+            <div class="graph-main">
+              <div id="cy-container"></div>
+              <div id="graph-tooltip"></div>
+            </div>
+            <div id="graph-info-panel" class="hidden">
+              <div class="info-title" id="graph-info-title"></div>
+              <div id="graph-info-body"></div>
+            </div>
           </div>
         </div>
       </div>
@@ -536,7 +544,7 @@ function toast(msg, type = 'success') {
   el.className = `toast toast-${type}`;
   el.textContent = msg;
   document.body.appendChild(el);
-  setTimeout(() => el.remove(), 3000);
+  setTimeout(() => el.remove(), type === 'error' ? 10000 : 3000);
 }
 
 function badge(status) {
@@ -1409,6 +1417,8 @@ async function aiPrerequisites() {
       `).join('');
     }
 
+    html += `<div style="margin-top:12px;"><button class="btn btn-sm btn-primary" onclick="switchTab('graph')">View in Graph</button></div>`;
+
     showAIResults(`Prerequisite Analysis — ${result.edges_created || 0} edges created`, html);
     loadStagedEdges();
     refreshSession();
@@ -2178,6 +2188,9 @@ function dismissSchemaProposals() {
 // ═══════════════════════════════════════════════════════
 
 let cyInstance = null;
+let graphAddEdgeMode = false;
+let graphEdgeSource = null;
+let savedGraphPositions = {};
 
 const statusColors = {
   proposed:        { bg: '#fbbf24', border: '#d97706', text: '#78350f' },
@@ -2308,9 +2321,10 @@ function renderGraph(kcs, edges, schemas) {
     return { data: nodeData };
   });
 
-  const edgeEls = edges.map((e, i) => ({
+  const edgeEls = edges.map(e => ({
     data: {
-      id: `e${i}`,
+      id: `e-${e.id}`,
+      edgeDbId: e.id,
       source: e.source_kc_id,
       target: e.target_kc_id,
       reasoning: e.ai_reasoning || '',
@@ -2318,8 +2332,13 @@ function renderGraph(kcs, edges, schemas) {
     }
   }));
 
-  // Destroy previous instance
+  // Save positions before destroying
   if (cyInstance) {
+    cyInstance.nodes().forEach(function(n) {
+      if (!n.isParent()) {
+        savedGraphPositions[n.id()] = { ...n.position() };
+      }
+    });
     cyInstance.destroy();
     cyInstance = null;
   }
@@ -2393,6 +2412,16 @@ function renderGraph(kcs, edges, schemas) {
         }
       },
       {
+        selector: 'edge[status="proposed"]',
+        style: {
+          'line-style': 'dashed',
+          'line-color': '#d97706',
+          'target-arrow-color': '#d97706',
+          'width': 1.5,
+          'arrow-scale': 0.7,
+        }
+      },
+      {
         selector: 'edge[status="confirmed"]',
         style: {
           'line-color': '#059669',
@@ -2408,14 +2437,50 @@ function renderGraph(kcs, edges, schemas) {
           'target-arrow-color': '#2563eb',
         }
       },
+      {
+        selector: 'node.ancestor',
+        style: {
+          'border-color': '#dc2626',
+          'border-width': 3,
+          'background-color': '#fecaca',
+        }
+      },
+      {
+        selector: 'node.descendant',
+        style: {
+          'border-color': '#059669',
+          'border-width': 3,
+          'background-color': '#bbf7d0',
+        }
+      },
+      {
+        selector: 'node.edge-source',
+        style: {
+          'border-color': '#f97316',
+          'border-width': 4,
+          'border-style': 'dashed',
+        }
+      },
     ],
-    layout: {
-      name: 'dagre',
-      rankDir: 'TB',
-      nodeSep: showSchemas ? 30 : 50,
-      rankSep: showSchemas ? 100 : 80,
-      padding: 30,
-    },
+    layout: (function() {
+      // Use saved positions if most nodes match (prevents graph jumping on edits)
+      const nodeIds = [...nodes, ...schemaNodes].map(n => n.data.id);
+      const matchCount = nodeIds.filter(id => savedGraphPositions[id]).length;
+      if (matchCount >= nodeIds.length * 0.5 && nodeIds.length > 0) {
+        return {
+          name: 'preset',
+          positions: function(node) { return savedGraphPositions[node.id()] || { x: 0, y: 0 }; },
+          padding: 30,
+        };
+      }
+      return {
+        name: 'dagre',
+        rankDir: 'TB',
+        nodeSep: showSchemas ? 30 : 50,
+        rankSep: showSchemas ? 100 : 80,
+        padding: 30,
+      };
+    })(),
     minZoom: 0.2,
     maxZoom: 3,
     wheelSensitivity: 0.3,
@@ -2424,6 +2489,24 @@ function renderGraph(kcs, edges, schemas) {
   // Click handler for nodes
   cyInstance.on('tap', 'node', function(evt) {
     const d = evt.target.data();
+    const node = evt.target;
+
+    // Clear previous highlighting
+    cyInstance.nodes().removeClass('ancestor descendant');
+
+    // Add-edge mode: two-click flow
+    if (graphAddEdgeMode && !d.isSchema) {
+      if (!graphEdgeSource) {
+        graphEdgeSource = d.fullId || d.id;
+        node.addClass('edge-source');
+        updateAddEdgeStatus('Click target KC...');
+      } else {
+        const targetId = d.fullId || d.id;
+        graphCreateEdge(graphEdgeSource, targetId);
+      }
+      return;
+    }
+
     const infoPanel = document.getElementById('graph-info-panel');
     const infoTitle = document.getElementById('graph-info-title');
     const infoBody = document.getElementById('graph-info-body');
@@ -2435,9 +2518,8 @@ function renderGraph(kcs, edges, schemas) {
       infoTitle.textContent = `Schema: ${d.label}`;
       let html = `<div style="margin-bottom:6px;"><span class="badge badge-${d.status}">${d.status}</span></div>`;
       if (d.description) html += `<div style="margin-bottom:8px;">${escapeHtml(d.description)}</div>`;
-      // List visible child KCs
-      const childKCs = evt.target.children().filter(n => !n.data('isSchema'));
-      const childSchemas = evt.target.children().filter(n => n.data('isSchema'));
+      const childKCs = node.children().filter(n => !n.data('isSchema'));
+      const childSchemas = node.children().filter(n => n.data('isSchema'));
       if (childSchemas.length > 0) {
         html += `<div style="margin-bottom:4px;"><strong>Child schemas (${childSchemas.length}):</strong> ${childSchemas.map(n => escapeHtml(n.data('label'))).join(', ')}</div>`;
       }
@@ -2449,18 +2531,21 @@ function renderGraph(kcs, edges, schemas) {
       return;
     }
 
-    // KC click
+    // KC click — show info + highlight ancestors/descendants
     infoTitle.textContent = d.fullId;
 
-    // Find predecessors and successors
-    const preds = evt.target.incomers('node').map(n => n.data('fullId'));
-    const succs = evt.target.outgoers('node').map(n => n.data('fullId'));
+    // Highlight ancestors and descendants
+    node.predecessors('node[!isSchema]').addClass('ancestor');
+    node.successors('node[!isSchema]').addClass('descendant');
+
+    const preds = node.incomers('node[!isSchema]').map(n => n.data('fullId'));
+    const succs = node.outgoers('node[!isSchema]').map(n => n.data('fullId'));
 
     let html = `<div style="margin-bottom:6px;"><span class="badge badge-${d.status}">${d.status}</span></div>`;
     if (d.description) html += `<div style="margin-bottom:8px;">${escapeHtml(d.description)}</div>`;
     if (d.sourceText) html += `<div style="background:#fffbeb;padding:6px 10px;border-radius:4px;border-left:3px solid var(--warning);margin-bottom:8px;font-size:12px;">${escapeHtml(d.sourceText)}</div>`;
-    if (preds.length) html += `<div style="margin-bottom:4px;"><strong>Prerequisites (${preds.length}):</strong> ${preds.map(p => `<code>${escapeHtml(p)}</code>`).join(', ')}</div>`;
-    if (succs.length) html += `<div><strong>Leads to (${succs.length}):</strong> ${succs.map(s => `<code>${escapeHtml(s)}</code>`).join(', ')}</div>`;
+    if (preds.length) html += `<div style="margin-bottom:4px;"><strong style="color:#dc2626;">Prerequisites (${preds.length}):</strong> ${preds.map(p => `<code>${escapeHtml(p)}</code>`).join(', ')}</div>`;
+    if (succs.length) html += `<div><strong style="color:#059669;">Leads to (${succs.length}):</strong> ${succs.map(s => `<code>${escapeHtml(s)}</code>`).join(', ')}</div>`;
     if (!preds.length && !succs.length) html += `<div style="color:var(--text-muted);font-style:italic;">No edges connected yet.</div>`;
 
     infoBody.innerHTML = html;
@@ -2476,14 +2561,27 @@ function renderGraph(kcs, edges, schemas) {
     infoPanel.classList.remove('hidden');
     infoTitle.textContent = `Edge: ${d.source} → ${d.target}`;
     let html = `<div style="margin-bottom:6px;"><span class="badge badge-${d.status}">${d.status}</span></div>`;
-    if (d.reasoning) html += `<div style="font-style:italic;color:var(--text-muted);">${escapeHtml(d.reasoning)}</div>`;
+    if (d.reasoning) html += `<div style="font-style:italic;color:var(--text-muted);margin-bottom:8px;">${escapeHtml(d.reasoning)}</div>`;
+    html += '<div style="display:flex;gap:6px;margin-top:8px;">';
+    if (d.status === 'proposed') {
+      html += `<button class="btn btn-sm btn-success" onclick="graphConfirmEdge(${d.edgeDbId})">Confirm</button>`;
+    }
+    html += `<button class="btn btn-sm btn-outline" onclick="graphDeleteEdge(${d.edgeDbId})" style="color:var(--danger);border-color:var(--danger);">Delete</button>`;
+    html += '</div>';
     infoBody.innerHTML = html;
   });
 
-  // Click background to dismiss info panel
+  // Click background to dismiss info panel and clear state
   cyInstance.on('tap', function(evt) {
     if (evt.target === cyInstance) {
       document.getElementById('graph-info-panel').classList.add('hidden');
+      cyInstance.nodes().removeClass('ancestor descendant');
+      if (graphAddEdgeMode) {
+        // Clear source selection but stay in add-edge mode
+        cyInstance.nodes().removeClass('edge-source');
+        graphEdgeSource = null;
+        updateAddEdgeStatus('Click source KC...');
+      }
     }
   });
 
@@ -2530,6 +2628,88 @@ function graphFitAll() {
   if (cyInstance) {
     cyInstance.fit(undefined, 30);
   }
+}
+
+// ── Graph Editing Functions ──
+
+function toggleGraphAddEdge() {
+  graphAddEdgeMode = !graphAddEdgeMode;
+  graphEdgeSource = null;
+  const btn = document.getElementById('graph-add-edge-btn');
+  if (graphAddEdgeMode) {
+    btn.classList.add('active');
+    btn.style.background = 'var(--primary)';
+    btn.style.color = 'white';
+    updateAddEdgeStatus('Click source KC...');
+  } else {
+    btn.classList.remove('active');
+    btn.style.background = '';
+    btn.style.color = '';
+    updateAddEdgeStatus('');
+    if (cyInstance) cyInstance.nodes().removeClass('edge-source');
+  }
+}
+
+function cancelGraphAddEdge() {
+  graphAddEdgeMode = false;
+  graphEdgeSource = null;
+  const btn = document.getElementById('graph-add-edge-btn');
+  if (btn) {
+    btn.classList.remove('active');
+    btn.style.background = '';
+    btn.style.color = '';
+  }
+  updateAddEdgeStatus('');
+  if (cyInstance) cyInstance.nodes().removeClass('edge-source');
+}
+
+function updateAddEdgeStatus(text) {
+  const el = document.getElementById('graph-add-edge-status');
+  if (el) el.textContent = text;
+}
+
+async function graphCreateEdge(sourceId, targetId) {
+  try {
+    await api('POST', `/api/staging/${currentSessionId}/edges`, {
+      source_kc_id: sourceId,
+      target_kc_id: targetId,
+    });
+    toast(`Edge created: ${sourceId} → ${targetId}`);
+    graphEdgeSource = null;
+    if (cyInstance) cyInstance.nodes().removeClass('edge-source');
+    updateAddEdgeStatus('Click source KC...');
+    loadGraph();
+  } catch (e) {
+    toast(e.message, 'error');
+    graphEdgeSource = null;
+    if (cyInstance) cyInstance.nodes().removeClass('edge-source');
+    updateAddEdgeStatus('Click source KC...');
+  }
+}
+
+async function graphConfirmEdge(edgeDbId) {
+  try {
+    await api('PATCH', `/api/staging/${currentSessionId}/edges/${edgeDbId}`, { status: 'confirmed' });
+    toast('Edge confirmed');
+    loadGraph();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function graphRejectEdge(edgeDbId) {
+  try {
+    await api('PATCH', `/api/staging/${currentSessionId}/edges/${edgeDbId}`, { status: 'rejected' });
+    toast('Edge rejected');
+    loadGraph();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function graphDeleteEdge(edgeDbId) {
+  if (!confirm('Delete this edge?')) return;
+  try {
+    await api('DELETE', `/api/staging/${currentSessionId}/edges/${edgeDbId}`);
+    toast('Edge deleted');
+    loadGraph();
+  } catch (e) { toast(e.message, 'error'); }
 }
 
 // ═══════════════════════════════════════════════════════
@@ -2645,6 +2825,13 @@ function appendConvMessage(role, content, timestamp, action) {
     actionDiv.style.cssText = 'margin-top:8px;padding:8px 10px;background:#f0f8f0;border-radius:6px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;';
 
     if (action.type === 'split' && action.children && action.children.length > 0) {
+      // Update pending splits so batch execute uses conversation's version
+      var ps = window._pendingSplits || [];
+      var idx = ps.findIndex(function(s) { return s.kc_id === currentConversationKcId; });
+      if (idx >= 0) { ps[idx].suggestions = action.children; }
+      else { ps.push({ kc_id: currentConversationKcId, suggestions: action.children }); }
+      window._pendingSplits = ps;
+
       var childrenJson = JSON.stringify(action.children);
       actionDiv.innerHTML =
         '<span style="font-size:12px;color:#555;">Split into ' + action.children.length + ' KCs:</span>' +
@@ -2722,10 +2909,25 @@ async function applyConversationSplit(childrenJson) {
     var result = await api('POST', '/api/staging/' + currentSessionId + '/kcs/' + kcId + '/split', { children: children });
     toast(kcId + ' split into ' + result.children.length + ' KCs: ' + result.children.map(function(c) { return c.id; }).join(', '));
     markAICardResolved(kcId, 'Split → ' + result.children.length + ' KCs (via discussion)', 'var(--warning)');
+    removeFromKeepsList(kcId);
     closeConversation();
     loadStagedKCs();
     refreshSession();
   } catch (e) { toast(e.message, 'error'); }
+}
+
+function removeFromKeepsList(kcId) {
+  var btn = document.getElementById('batch-approve-keeps');
+  if (!btn) return;
+  var ids = JSON.parse(btn.getAttribute('data-original-ids') || '[]');
+  ids = ids.filter(function(id) { return id !== kcId; });
+  if (ids.length === 0) {
+    btn.remove();
+  } else {
+    btn.setAttribute('data-original-ids', JSON.stringify(ids));
+    btn.setAttribute('onclick', 'batchApproveGrain(' + JSON.stringify(ids).replace(/"/g, '&quot;') + ')');
+    btn.textContent = 'Approve All Keeps (' + ids.length + ')';
+  }
 }
 
 async function applyConversationApprove() {
@@ -2750,8 +2952,12 @@ function closeConversation() {
 
 // Close on Escape
 document.addEventListener('keydown', function(e) {
-  if (e.key === 'Escape' && document.getElementById('conv-panel').classList.contains('open')) {
-    closeConversation();
+  if (e.key === 'Escape') {
+    if (graphAddEdgeMode) {
+      cancelGraphAddEdge();
+    } else if (document.getElementById('conv-panel').classList.contains('open')) {
+      closeConversation();
+    }
   }
 });
 </script>
