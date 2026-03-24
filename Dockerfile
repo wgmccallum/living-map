@@ -20,8 +20,6 @@ RUN cd frontend && npm install && npm run build
 COPY living_map/ living_map/
 COPY living_map.db .
 
-# Railway sets PORT dynamically
 ENV PORT=8000
-EXPOSE ${PORT}
 
-CMD uvicorn living_map.app:app --host 0.0.0.0 --port ${PORT}
+CMD ["sh", "-c", "uvicorn living_map.app:app --host 0.0.0.0 --port $PORT --log-level info"]
