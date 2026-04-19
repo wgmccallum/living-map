@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback, useRef } from "react";
-import { api, type KC, type Edge, type Frame, type Stats, type ValidationReport, type QuotientResult, type ConvexityViolation, type LaminarityViolation, type MathDomain, type MathDomainEdge } from "./api";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { api, type KC, type Edge, type Frame, type Schema, type Stats, type ValidationReport, type QuotientResult, type ConvexityViolation, type LaminarityViolation, type MathDomain, type MathDomainEdge } from "./api";
 import { DAGView, type DAGViewHandle } from "./DAGView";
 import { MathDomainsView } from "./MathDomainsView";
+import { TopologyDiagnosticsView } from "./TopologyDiagnosticsView";
 import { SidePanel } from "./SidePanel";
 
-type ActiveView = "kc" | "domains";
+type ActiveView = "kc" | "domains" | "topology";
 
 type ColorMode = "language_demand" | "schema" | "category" | "math_concept";
 
@@ -26,6 +27,16 @@ const MATH_CONCEPT_COLORS: Record<string, string> = {
   "reals": "#edc948",
   "number-line": "#af7aa1",
 };
+
+function computeAtomSet(schemaId: string, schemas: Schema[]): Set<string> {
+  const schema = schemas.find((s) => s.id === schemaId);
+  if (!schema) return new Set();
+  const result = new Set(schema.kc_ids);
+  for (const child of schemas.filter((s) => s.parent_schema_id === schemaId)) {
+    for (const id of computeAtomSet(child.id, schemas)) result.add(id);
+  }
+  return result;
+}
 
 function parseQuotientError(msg: string): string {
   // Backend returns errors like:
@@ -59,6 +70,7 @@ export function App() {
   const [showSchemaOverlay, setShowSchemaOverlay] = useState(true);
   const [showValidationDetail, setShowValidationDetail] = useState(false);
   const [showOnlyActiveFrame, setShowOnlyActiveFrame] = useState(true);
+  const [selectedSchemaId, setSelectedSchemaId] = useState<string | null>(null);
   const [activeView, setActiveView] = useState<ActiveView>("kc");
   const [mathDomains, setMathDomains] = useState<MathDomain[]>([]);
   const [mathDomainEdges, setMathDomainEdges] = useState<MathDomainEdge[]>([]);
@@ -212,11 +224,22 @@ export function App() {
     return ids;
   })();
 
-  // Apply frame filter, then search filter
-  const baseKCs = frameKCIds ? kcs.filter((kc) => frameKCIds.has(kc.id)) : kcs;
-  const baseEdges = frameKCIds
+  // Apply frame filter
+  const frameFilteredKCs = frameKCIds ? kcs.filter((kc) => frameKCIds.has(kc.id)) : kcs;
+  const frameFilteredEdges = frameKCIds
     ? edges.filter((e) => frameKCIds.has(e.source_kc_id) && frameKCIds.has(e.target_kc_id))
     : edges;
+
+  // Apply schema filter
+  const schemaAtoms = useMemo(() => {
+    if (!selectedSchemaId || !activeFrame) return null;
+    return computeAtomSet(selectedSchemaId, activeFrame.schemas);
+  }, [selectedSchemaId, activeFrame]);
+
+  const baseKCs = schemaAtoms ? frameFilteredKCs.filter((kc) => schemaAtoms.has(kc.id)) : frameFilteredKCs;
+  const baseEdges = schemaAtoms
+    ? frameFilteredEdges.filter((e) => schemaAtoms.has(e.source_kc_id) && schemaAtoms.has(e.target_kc_id))
+    : frameFilteredEdges;
 
   // Filter KCs by search
   const filteredKCs = searchQuery
@@ -251,7 +274,7 @@ export function App() {
             value={activeFrame?.id || ""}
             onChange={(e) => {
               const f = frames.find((fr) => fr.id === e.target.value);
-              if (f) { setActiveFrame(f); handleResetQuotient(); }
+              if (f) { setActiveFrame(f); handleResetQuotient(); setSelectedSchemaId(null); }
             }}
           >
             {frames.map((f) => (
@@ -330,6 +353,41 @@ export function App() {
             />
             Show only active frame
           </label>
+          {activeFrame && (
+            <div style={{ marginTop: 8 }}>
+              <label style={{ fontSize: 13, fontWeight: 500 }}>Schema filter</label>
+              <select
+                value={selectedSchemaId || ""}
+                onChange={(e) => setSelectedSchemaId(e.target.value || null)}
+                style={{ width: "100%", marginTop: 4 }}
+              >
+                <option value="">All schemas</option>
+                {(() => {
+                  const schemas = activeFrame.schemas;
+                  const byParent = new Map<string | null, typeof schemas>();
+                  for (const s of schemas) {
+                    const key = s.parent_schema_id && schemas.some((p) => p.id === s.parent_schema_id) ? s.parent_schema_id : null;
+                    if (!byParent.has(key)) byParent.set(key, []);
+                    byParent.get(key)!.push(s);
+                  }
+                  for (const children of byParent.values()) children.sort((a, b) => a.id.localeCompare(b.id));
+                  const ordered: { schema: typeof schemas[0]; depth: number }[] = [];
+                  const walk = (parentId: string | null, depth: number) => {
+                    for (const s of byParent.get(parentId) || []) {
+                      ordered.push({ schema: s, depth });
+                      walk(s.id, depth + 1);
+                    }
+                  };
+                  walk(null, 0);
+                  return ordered.map(({ schema: s, depth }) => (
+                    <option key={s.id} value={s.id}>
+                      {"\u00A0\u00A0".repeat(depth)}{s.id}: {s.name}
+                    </option>
+                  ));
+                })()}
+              </select>
+            </div>
+          )}
         </div>
 
         {/* Quotient controls */}
@@ -468,6 +526,12 @@ export function App() {
             onClick={() => { setActiveView("domains"); setSelectedNodeId(null); }}
           >
             Math Domains
+          </button>
+          <button
+            className={`view-tab ${activeView === "topology" ? "active" : ""}`}
+            onClick={() => { setActiveView("topology"); setSelectedNodeId(null); }}
+          >
+            Topology
           </button>
         </div>
 
@@ -657,7 +721,7 @@ export function App() {
           </div>
         )}
 
-        {activeView === "kc" ? (
+        {activeView === "kc" && (
           <DAGView
             ref={dagViewRef}
             kcs={baseKCs}
@@ -699,13 +763,25 @@ export function App() {
             quotientResult={isQuotientView ? quotientResult : null}
             collapsedSchemaIds={quotientSchemaIds}
           />
-        ) : (
+        )}
+        {activeView === "domains" && (
           <MathDomainsView
             domains={mathDomains}
             domainEdges={mathDomainEdges}
             selectedDomainId={selectedNodeId}
             onSelectDomain={setSelectedNodeId}
             onRefresh={refreshData}
+          />
+        )}
+        {activeView === "topology" && (
+          <TopologyDiagnosticsView
+            frame={activeFrame}
+            kcs={kcs}
+            edges={edges}
+            onNavigateToKC={(kcId) => {
+              setActiveView("kc");
+              setSelectedNodeId(kcId);
+            }}
           />
         )}
       </div>

@@ -239,4 +239,48 @@ export const api = {
   createMathDomainEdge: (sourceId: string, targetId: string) =>
     post<MathDomainEdge>("/math-concept-edges", { source_id: sourceId, target_id: targetId }),
   deleteMathDomainEdge: (edgeId: number) => del(`/math-concept-edges/${edgeId}`),
+
+  // Topology Diagnostics
+  diagnoseTopology: (frameId: string) =>
+    post<TopologyDiagnosticsResponse>(
+      `/frames/${encodeURIComponent(frameId)}/topology/diagnose`, {}),
+  diagnoseTopologyWithScenario: (frameId: string, scenario: LearnerScenarioPayload) =>
+    post<TopologyDiagnosticsResponse>(
+      `/frames/${encodeURIComponent(frameId)}/topology/diagnose-scenario`, scenario),
 };
+
+// Topology Diagnostics types
+
+export interface SuggestedAction {
+  label: string;
+  action_type: string;
+  payload: Record<string, unknown>;
+}
+
+export interface TopologyIssue {
+  id: string;
+  issue_type: string;
+  severity: string;
+  summary: string;
+  involved_kcs: string[];
+  involved_schemas: string[];
+  extra: Record<string, unknown>;
+  suggested_actions: SuggestedAction[];
+}
+
+export interface TopologyDiagnosticsResponse {
+  frame_id: string;
+  issues: TopologyIssue[];
+  summary: Record<string, number>;
+  scenario_name: string | null;
+}
+
+export interface LearnerScenarioPayload {
+  name: string;
+  theta: number;
+  mastery_functions: Array<{
+    vertex_id: string;
+    breakpoints: Array<{ time: number; value: number }>;
+  }>;
+  long_h1_threshold_ratio?: number;
+}

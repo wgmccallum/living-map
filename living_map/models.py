@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 
@@ -390,3 +392,47 @@ class ConversationReply(BaseModel):
     content: str
     timestamp: str
     full_history: list[ConversationMessage] = Field(default_factory=list)
+
+
+# --- Topology Diagnostics ---
+
+
+class SuggestedActionResponse(BaseModel):
+    label: str
+    action_type: str
+    payload: dict[str, Any] = Field(default_factory=dict)
+
+
+class TopologyIssueResponse(BaseModel):
+    id: str
+    issue_type: str
+    severity: str
+    summary: str
+    involved_kcs: list[str] = Field(default_factory=list)
+    involved_schemas: list[str] = Field(default_factory=list)
+    extra: dict[str, Any] = Field(default_factory=dict)
+    suggested_actions: list[SuggestedActionResponse] = Field(default_factory=list)
+
+
+class TopologyDiagnosticsResponse(BaseModel):
+    frame_id: str
+    issues: list[TopologyIssueResponse] = Field(default_factory=list)
+    summary: dict[str, int] = Field(default_factory=dict)
+    scenario_name: str | None = None
+
+
+class MasteryBreakpointModel(BaseModel):
+    time: float
+    value: float
+
+
+class MasteryFunctionModel(BaseModel):
+    vertex_id: str
+    breakpoints: list[MasteryBreakpointModel] = Field(default_factory=list)
+
+
+class LearnerScenarioRequest(BaseModel):
+    name: str = "Custom Scenario"
+    theta: float = 0.7
+    mastery_functions: list[MasteryFunctionModel] = Field(default_factory=list)
+    long_h1_threshold_ratio: float = 0.3

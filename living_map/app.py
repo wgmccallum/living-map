@@ -54,6 +54,7 @@ from .models import (
     ConversationResponse,
     ConversationReply,
     ConversationSendRequest,
+    LearnerScenarioRequest,
 )
 from .staging_dal import StagingDAL
 
@@ -547,6 +548,58 @@ def validate_frame_endpoint(frame_id: str):
     if not frame:
         raise HTTPException(404, f"Frame {frame_id} not found")
     return validate_frame(frame_id, dal.conn, get_graphs().knowledge_graph)
+
+
+# ── Topology Diagnostics ──
+
+
+@app.post("/api/frames/{frame_id}/topology/diagnose")
+def diagnose_frame_topology(frame_id: str):
+    """Run frame-only topological diagnostics: permanent H₁ cycles,
+    permanent H₀ components, antichain schemas."""
+    from .topology_diagnostics import diagnose_frame as diag
+
+    dal = get_dal()
+    frame = dal.get_frame(frame_id)
+    if not frame:
+        raise HTTPException(404, f"Frame {frame_id} not found")
+    try:
+        return diag(frame_id, dal.conn, scenario=None)
+    except Exception as e:
+        raise HTTPException(500, f"Diagnostic computation failed: {e}")
+
+
+@app.post("/api/frames/{frame_id}/topology/diagnose-scenario")
+def diagnose_frame_with_scenario(frame_id: str, body: LearnerScenarioRequest):
+    """Run topological diagnostics including learner-scenario-dependent
+    issues (long-lived H₁ bars)."""
+    from .topology_diagnostics import diagnose_frame as diag
+    from .topology import (
+        LearnerScenario, MasteryFunction, MasteryBreakpoint,
+    )
+
+    dal = get_dal()
+    frame = dal.get_frame(frame_id)
+    if not frame:
+        raise HTTPException(404, f"Frame {frame_id} not found")
+
+    mfs: dict[str, MasteryFunction] = {}
+    for mf in body.mastery_functions:
+        mfs[mf.vertex_id] = MasteryFunction(
+            vertex_id=mf.vertex_id,
+            breakpoints=[
+                MasteryBreakpoint(time=bp.time, value=bp.value)
+                for bp in mf.breakpoints
+            ],
+        )
+    scenario = LearnerScenario(
+        name=body.name, mastery_functions=mfs, theta=body.theta,
+    )
+    try:
+        return diag(frame_id, dal.conn, scenario=scenario,
+                    long_h1_threshold_ratio=body.long_h1_threshold_ratio)
+    except Exception as e:
+        raise HTTPException(500, f"Diagnostic computation failed: {e}")
 
 
 # ── Quotient ──
@@ -1087,6 +1140,36 @@ def ai_grain_review(session_id: str, body: AIBatchRequest):
         raise HTTPException(503, str(e))
     except Exception as e:
         raise HTTPException(500, f"AI grain review failed: {e}")
+
+
+@app.post("/api/staging/{session_id}/ai/cleanup")
+def ai_cleanup(session_id: str, body: AIBatchRequest):
+    """Classify ingested page-chunks for cleanup before grain review.
+
+    Returns each page classified as 'content', 'scaffolding', or 'structural'
+    so the user can remove non-content pages before KC analysis.
+    """
+    from .ai_service import cleanup_review
+    sdal = get_staging_dal()
+    session = sdal.get_session(session_id)
+    if not session:
+        raise HTTPException(404, f"Staging session {session_id} not found")
+
+    staged_kcs = []
+    for kc_id in body.kc_ids:
+        kc = sdal.get_staged_kc(session_id, kc_id)
+        if kc:
+            staged_kcs.append(kc.model_dump())
+    if not staged_kcs:
+        raise HTTPException(400, "No valid KC IDs provided")
+
+    try:
+        result = cleanup_review(staged_kcs)
+        return {"session_id": session_id, "classifications": result}
+    except RuntimeError as e:
+        raise HTTPException(503, str(e))
+    except Exception as e:
+        raise HTTPException(500, f"AI cleanup review failed: {e}")
 
 
 @app.post("/api/staging/{session_id}/ai/formulate")
