@@ -42,6 +42,8 @@ def _get_client():
 
 def _call_claude(system: str, user: str, max_tokens: int = 4096) -> str:
     """Call Claude and return the text response."""
+    import logging
+    log = logging.getLogger(__name__)
     client = _get_client()
     response = client.messages.create(
         model=_MODEL,
@@ -49,28 +51,79 @@ def _call_claude(system: str, user: str, max_tokens: int = 4096) -> str:
         system=system,
         messages=[{"role": "user", "content": user}],
     )
-    return response.content[0].text
+    text = response.content[0].text
+    log.info(
+        "Claude response: stop_reason=%s, tokens=%s, length=%d chars",
+        response.stop_reason,
+        response.usage.output_tokens if response.usage else "?",
+        len(text),
+    )
+    if response.stop_reason == "max_tokens":
+        log.warning("Response was TRUNCATED (hit max_tokens=%d)", max_tokens)
+    return text
+
+
 
 
 def _extract_json(text: str) -> dict | list:
-    """Extract JSON from a Claude response that may contain markdown fences."""
+    """Extract JSON from a Claude response that may contain markdown fences.
+
+    Handles truncated responses (from hitting max_tokens) by attempting to
+    repair incomplete JSON arrays — closing open strings/objects and adding
+    the final ``]``.
+    """
     # Try to find JSON in code blocks first
     match = re.search(r"```(?:json)?\s*\n?([\s\S]*?)\n?```", text)
-    if match:
-        return json.loads(match.group(1))
-    # Try parsing the whole response
-    # Find first [ or { and last ] or }
-    start = min(
-        (text.find(c) for c in "[{" if text.find(c) >= 0),
-        default=-1,
-    )
-    if start >= 0:
-        end = max(
-            (text.rfind(c) for c in "]}" if text.rfind(c) >= 0),
+    candidate = match.group(1) if match else None
+
+    if candidate is None:
+        # Find first [ or { and last ] or }
+        start = min(
+            (text.find(c) for c in "[{" if text.find(c) >= 0),
             default=-1,
         )
-        if end > start:
-            return json.loads(text[start : end + 1])
+        if start >= 0:
+            end = max(
+                (text.rfind(c) for c in "]}" if text.rfind(c) >= 0),
+                default=-1,
+            )
+            if end > start:
+                candidate = text[start : end + 1]
+
+    if candidate is None:
+        raise ValueError(f"Could not extract JSON from response: {text[:200]}...")
+
+    import logging
+    log = logging.getLogger(__name__)
+
+    # First try: parse as-is
+    try:
+        return json.loads(candidate)
+    except json.JSONDecodeError as e:
+        log.warning("JSON parse failed (first try): %s", e)
+        log.debug("Raw candidate (first 2000 chars):\n%s", candidate[:2000])
+
+    # Second try: repair truncated JSON array.
+    # The most common failure mode is the response hitting max_tokens
+    # mid-way through a JSON array element.  Strategy: walk backwards to
+    # the last complete object (ends with ``}``), then close the array.
+    last_close = candidate.rfind("}")
+    if last_close > 0:
+        truncated = candidate[: last_close + 1].rstrip().rstrip(",")
+        # Close any open array
+        if truncated.lstrip()[0] == "[" and not truncated.rstrip().endswith("]"):
+            truncated = truncated + "\n]"
+        try:
+            result = json.loads(truncated)
+            log.warning(
+                "AI response was truncated — parsed %d items from incomplete JSON",
+                len(result) if isinstance(result, list) else 1,
+            )
+            return result
+        except json.JSONDecodeError as e:
+            log.warning("JSON repair also failed: %s", e)
+
+    log.error("Could not parse AI response. Full text:\n%s", text)
     raise ValueError(f"Could not extract JSON from response: {text[:200]}...")
 
 
@@ -149,6 +202,75 @@ Respond with a JSON array. For each KC:
 }}"""
 
     response = _call_claude(_SYSTEM_BASE, user_msg)
+    return _extract_json(response)
+
+
+# ═══════════════════════════════════════════════════════
+# Document Cleanup Review (pre-grain-review)
+# ═══════════════════════════════════════════════════════
+
+
+def cleanup_review(kcs: list[dict]) -> list[dict]:
+    """Classify ingested page-level chunks for cleanup before grain review.
+
+    Identifies non-content pages (title pages, TOC, glossaries, overviews)
+    that should be removed before KC analysis begins.
+
+    Args:
+        kcs: List of staged KC dicts (id, source_text, source_reference, metadata)
+
+    Returns:
+        List of dicts, one per KC:
+        - kc_id: the staged KC ID
+        - category: 'content', 'scaffolding', or 'structural'
+        - reasoning: Brief explanation of classification
+        - page_label: Short descriptive label (e.g. 'Title Page', 'Grade 2 Overview')
+    """
+    page_descriptions = "\n\n".join(
+        f"[{kc['id']}] Source: {kc.get('source_reference', 'unknown')}\n"
+        f"Text (first 500 chars): {kc.get('source_text', '')[:500]}"
+        for kc in kcs
+    )
+
+    user_msg = f"""You are reviewing pages extracted from a PDF document that has been \
+ingested into a staging pipeline. Each page has been turned into a preliminary chunk. \
+Your job is to classify each chunk so the user can remove non-content pages before \
+doing fine-grained KC analysis.
+
+Classify each page into one of three categories:
+
+1. **content** — Contains actual standards, definitions, learning objectives, \
+mathematical content, or other substantive material that should become Knowledge Components. \
+This is the material the document was written to convey.
+
+2. **scaffolding** — Publishing infrastructure that is never KC material: \
+title pages, copyright notices, tables of contents, glossaries, bibliographies, \
+reference tables, index pages, appendices of notation, works cited.
+
+3. **structural** — Organizational narrative that frames the content but is not itself \
+a standard or learning objective: grade-level overviews ("In Grade X, instructional time \
+should focus on..."), domain introductions, "how to read this document" sections, \
+practice standard descriptions, transition notes between sections.
+
+Important guidance:
+- Pages with numbered standards, domain codes (e.g. NBT, OA, NF), or specific \
+mathematical content are ALWAYS "content" even if they also contain some framing text.
+- A page that mixes a brief intro paragraph with actual standards is "content".
+- When in doubt, classify as "content" — it's better to keep a borderline page than remove it.
+
+Pages to classify:
+
+{page_descriptions}
+
+Respond with a JSON array. For each page:
+{{
+  "kc_id": "the staged KC ID",
+  "category": "content" | "scaffolding" | "structural",
+  "reasoning": "One-sentence explanation",
+  "page_label": "Short label like 'Title Page' or 'Grade 3 — Number & Operations in Base Ten'"
+}}"""
+
+    response = _call_claude(_SYSTEM_BASE, user_msg, max_tokens=8192)
     return _extract_json(response)
 
 
@@ -328,7 +450,7 @@ Respond with a JSON array. For each KC:
   "correctness_note": "Any mathematical concerns, or null if none"
 }}"""
 
-    response = _call_claude(_SYSTEM_BASE, user_msg, max_tokens=8192)
+    response = _call_claude(_SYSTEM_BASE, user_msg, max_tokens=16384)
     return _extract_json(response)
 
 

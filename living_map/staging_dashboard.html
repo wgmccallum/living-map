@@ -282,9 +282,9 @@
           <div class="upload-area" id="upload-area" onclick="document.getElementById('file-input').click()">
             <svg width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" style="color:var(--text-muted)"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/></svg>
             <p>Click to upload or drag and drop</p>
-            <div class="formats">.tex · .xlsx · .docx · .txt</div>
+            <div class="formats">.tex · .xlsx · .docx · .txt · .pdf</div>
           </div>
-          <input type="file" id="file-input" accept=".tex,.xlsx,.docx,.txt,.text" style="display:none" multiple onchange="handleFileUpload(this)">
+          <input type="file" id="file-input" accept=".tex,.xlsx,.docx,.txt,.text,.pdf" style="display:none" multiple onchange="handleFileUpload(this)">
           <div id="upload-progress" class="hidden" style="margin-top:12px; text-align:center; color:var(--text-muted);">
             Parsing document...
           </div>
@@ -310,6 +310,9 @@
         <div class="panel-body" style="padding:12px 18px;">
           <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
             <strong style="font-size:13px; margin-right:8px;">AI Actions:</strong>
+            <button class="btn btn-sm btn-warning" onclick="aiCleanupPages()" id="btn-ai-cleanup" style="display:none;">
+              Cleanup Pages (proposed)
+            </button>
             <button class="btn btn-sm btn-primary" onclick="aiGrainReview()" id="btn-ai-grain">
               Analyze Grain Size (proposed)
             </button>
@@ -637,6 +640,7 @@ async function openSession(sessionId) {
   await refreshSession();
   checkAIStatus();
   loadConversationBadges();
+  checkPendingFormulations();
   switchTab('ingest');
 }
 
@@ -923,6 +927,33 @@ async function batchExecuteSplits() {
   refreshSession();
 }
 
+async function batchExecuteMerges() {
+  const merges = window._pendingMerges || [];
+  if (merges.length === 0) { toast('No pending merges', 'error'); return; }
+  const summary = merges.map(m => `${m.kc_id} + ${m.merge_target} → new merged KC`).join('\n');
+  if (!confirm(`Execute ${merges.length} merges? Each creates a new merged KC and retires the originals.\n\n${summary}`)) return;
+  let completed = 0;
+  for (const m of merges) {
+    try {
+      const result = await api('POST', `/api/staging/${currentSessionId}/merge`, {
+        mode: 'create',
+        source_ids: [m.kc_id, m.merge_target],
+      });
+      markAICardResolved(m.kc_id, `Merged → ${result.merged_kc.id}`, 'var(--primary)');
+      markAICardResolved(m.merge_target, `Merged → ${result.merged_kc.id}`, 'var(--primary)');
+      completed++;
+    } catch (e) {
+      // Skip already-merged or stale KCs
+      markAICardResolved(m.kc_id, 'Skipped (already acted on)', '#999');
+    }
+  }
+  markBatchBtnDone('batch-execute-merges', `${completed} merges executed`);
+  toast(`${completed} of ${merges.length} merges executed`);
+  window._pendingMerges = [];
+  loadStagedKCs();
+  refreshSession();
+}
+
 async function batchApproveAllProposed() {
   // Fetch current proposed KCs (some may have already been approved or split)
   const remaining = await api('GET', `/api/staging/${currentSessionId}/kcs?stage_status=proposed`);
@@ -1117,22 +1148,63 @@ async function promptComment(kcId) {
 
 async function editKC(kcId) {
   const kc = await api('GET', `/api/staging/${currentSessionId}/kcs/${kcId}`);
-  const shortDesc = prompt('Short description:', kc.short_description || '');
-  if (shortDesc === null) return;
-  const longDesc = prompt('Long description (behavioral definition):', kc.long_description || '');
-  if (longDesc === null) return;
+
+  // Build a modal dialog with both fields
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:10000;display:flex;align-items:center;justify-content:center;';
+  const dialog = document.createElement('div');
+  dialog.style.cssText = 'background:white;border-radius:10px;padding:24px;width:560px;max-width:90vw;max-height:90vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.2);';
+  dialog.innerHTML = `
+    <h3 style="margin:0 0 16px 0;font-size:16px;">Edit ${kcId}</h3>
+    <label style="display:block;font-size:13px;font-weight:600;margin-bottom:4px;">Short description</label>
+    <input id="edit-kc-short" type="text" value="" style="width:100%;padding:8px 10px;border:1px solid #ccc;border-radius:6px;font-size:14px;box-sizing:border-box;margin-bottom:14px;">
+    <label style="display:block;font-size:13px;font-weight:600;margin-bottom:4px;">Long description (behavioral definition)</label>
+    <textarea id="edit-kc-long" style="width:100%;min-height:120px;padding:8px 10px;border:1px solid #ccc;border-radius:6px;font-size:14px;box-sizing:border-box;resize:vertical;white-space:pre-wrap;word-wrap:break-word;margin-bottom:18px;"></textarea>
+    <div style="display:flex;gap:8px;justify-content:flex-end;">
+      <button id="edit-kc-cancel" class="btn btn-sm btn-outline">Cancel</button>
+      <button id="edit-kc-save" class="btn btn-sm btn-success">Save</button>
+    </div>
+  `;
+  overlay.appendChild(dialog);
+  document.body.appendChild(overlay);
+
+  // Populate after DOM insertion so values with special chars are safe
+  document.getElementById('edit-kc-short').value = kc.short_description || '';
+  document.getElementById('edit-kc-long').value = kc.long_description || '';
+
+  // Wait for user action
+  const result = await new Promise(resolve => {
+    document.getElementById('edit-kc-cancel').onclick = () => resolve(null);
+    overlay.addEventListener('click', e => { if (e.target === overlay) resolve(null); });
+    document.getElementById('edit-kc-save').onclick = () => resolve({
+      shortDesc: document.getElementById('edit-kc-short').value,
+      longDesc: document.getElementById('edit-kc-long').value,
+    });
+    document.addEventListener('keydown', function handler(e) {
+      if (e.key === 'Escape') { document.removeEventListener('keydown', handler); resolve(null); }
+    });
+  });
+  overlay.remove();
+  if (!result) return;
+
   const update = {};
-  if (shortDesc !== (kc.short_description || '')) update.short_description = shortDesc;
-  if (longDesc !== (kc.long_description || '')) update.long_description = longDesc;
+  if (result.shortDesc !== (kc.short_description || '')) update.short_description = result.shortDesc;
+  if (result.longDesc !== (kc.long_description || '')) update.long_description = result.longDesc;
   if (Object.keys(update).length === 0) return;
   try {
     await api('PATCH', `/api/staging/${currentSessionId}/kcs/${kcId}`, update);
     toast(`${kcId} updated`);
-    // Track this KC as manually edited so batch approve skips it
+    // Track this KC as manually edited so AI formulation skips it
     if (!window._manuallyEditedKCs) window._manuallyEditedKCs = new Set();
     window._manuallyEditedKCs.add(kcId);
-    markAICardResolved(kcId, 'Edited manually', 'var(--primary)');
-    updateBatchButtonLabels();
+    // Refresh the AI results panel if it's showing formulation approvals
+    const aiPanel = document.getElementById('ai-results-panel');
+    if (aiPanel && !aiPanel.classList.contains('hidden') && document.getElementById('batch-approve-formulations')) {
+      await checkPendingFormulations();
+    } else {
+      markAICardResolved(kcId, 'Edited manually', 'var(--primary)');
+      updateBatchButtonLabels();
+    }
     loadStagedKCs();
   } catch (e) { toast(e.message, 'error'); }
 }
@@ -1194,8 +1266,11 @@ async function checkAIStatus() {
   }
 }
 
-function aiSetWorking(working) {
-  document.getElementById('ai-working').classList.toggle('hidden', !working);
+function aiSetWorking(working, progressText) {
+  const el = document.getElementById('ai-working');
+  el.classList.toggle('hidden', !working);
+  if (progressText) el.textContent = '⏳ ' + progressText;
+  else if (working) el.textContent = '⏳ AI is thinking...';
   document.querySelectorAll('[id^="btn-ai-"]').forEach(b => b.disabled = working);
 }
 
@@ -1225,6 +1300,47 @@ function dismissAIResults() {
   loadStagedKCs();
 }
 
+async function checkPendingFormulations() {
+  if (!currentSessionId) return;
+  // Find grain_approved KCs that already have descriptions — formulation ran but wasn't approved
+  const kcs = await api('GET', `/api/staging/${currentSessionId}/kcs?stage_status=grain_approved`);
+  const pending = kcs.filter(k => k.short_description && k.long_description);
+  if (pending.length === 0) return;
+
+  const html = pending.map(kc => `
+    <div class="kc-detail">
+      <div class="kc-header">
+        <span class="kc-id">${kc.id}</span>
+        <span class="badge badge-formulated">${kc.kc_type || 'KC'}</span>
+      </div>
+      ${kc.source_text ? `<div class="meta" style="margin-bottom:6px;padding:6px 8px;background:#f8f8f8;border-radius:4px;font-size:13px;white-space:pre-wrap;">${escapeHtml(kc.source_text)}</div>` : ''}
+      <div class="kc-desc"><strong>Short:</strong> ${escapeHtml(kc.short_description)}</div>
+      <div class="kc-desc"><strong>Long:</strong> ${escapeHtml(kc.long_description)}</div>
+      <div class="meta">
+        <strong>Language:</strong> ${(kc.language_demands || []).join(', ') || 'none'}
+        ${kc.ai_correctness_note ? ` · <strong style="color:var(--warning)">Note:</strong> ${escapeHtml(kc.ai_correctness_note)}` : ''}
+      </div>
+      <div class="kc-actions">
+        <button class="btn btn-sm btn-success" onclick="updateKCStatus('${kc.id}','formulated')">Approve Formulation</button>
+        <button class="btn btn-sm btn-outline" onclick="editKC('${kc.id}')">Edit</button>
+      </div>
+    </div>
+  `).join('');
+
+  const ids = pending.map(k => k.id);
+  const batchBar = `
+    <div data-batch-bar style="display:flex;gap:8px;align-items:center;margin-bottom:12px;padding:10px 12px;background:#f0f8f0;border-radius:8px;">
+      <span style="font-size:13px;color:#555;">${ids.length} KC${ids.length > 1 ? 's' : ''} awaiting formulation approval</span>
+      <button id="batch-approve-formulations" class="btn btn-sm btn-success" data-original-ids='${JSON.stringify(ids)}' onclick="batchApproveFormulation(${JSON.stringify(ids).replace(/"/g, '&quot;')})">Approve All Formulations (${ids.length})</button>
+    </div>
+  `;
+
+  showAIResults(`Pending Formulation Approvals — ${ids.length} KCs`, batchBar + html, {aboveKCs: true});
+}
+
+const AI_BATCH_GRAIN = 30;
+const AI_BATCH_FORMULATE = 20;
+
 async function aiGrainReview() {
   if (!aiAvailable) { toast('AI is not configured. Set ANTHROPIC_API_KEY and restart.', 'error'); return; }
   // Get all proposed KCs
@@ -1233,11 +1349,21 @@ async function aiGrainReview() {
 
   aiSetWorking(true);
   try {
-    const result = await api('POST', `/api/staging/${currentSessionId}/ai/grain-review`, {
-      kc_ids: kcs.map(k => k.id),
-    });
+    // Process in batches to avoid output truncation
+    const reviews = [];
+    const totalBatches = Math.ceil(kcs.length / AI_BATCH_GRAIN);
+    for (let i = 0; i < kcs.length; i += AI_BATCH_GRAIN) {
+      const batch = kcs.slice(i, i + AI_BATCH_GRAIN);
+      const batchNum = Math.floor(i / AI_BATCH_GRAIN) + 1;
+      if (totalBatches > 1) {
+        aiSetWorking(true, `Grain review: batch ${batchNum} of ${totalBatches} (${reviews.length}/${kcs.length} done)...`);
+      }
+      const result = await api('POST', `/api/staging/${currentSessionId}/ai/grain-review`, {
+        kc_ids: batch.map(k => k.id),
+      });
+      reviews.push(...(result.reviews || []));
+    }
 
-    const reviews = result.reviews || [];
     const kcLookup = Object.fromEntries(kcs.map(k => [k.id, k]));
     // Store analyses in a map so we don't have to inline them in onclick attributes
     window._grainAnalysisMap = Object.fromEntries(reviews.map(r => [r.kc_id, r.analysis || '']));
@@ -1279,6 +1405,10 @@ async function aiGrainReview() {
     // Store splits globally so the batch function can access them
     window._pendingSplits = splitItems.map(r => ({ kc_id: r.kc_id, suggestions: r.split_suggestions }));
 
+    const mergeItems = reviews.filter(r => r.recommendation === 'merge' && r.merge_target);
+    // Store merges globally so the batch function can access them
+    window._pendingMerges = mergeItems.map(r => ({ kc_id: r.kc_id, merge_target: r.merge_target }));
+
     const allIds = reviews.map(r => r.kc_id);
 
     let batchButtons = [];
@@ -1288,8 +1418,11 @@ async function aiGrainReview() {
     if (splitItems.length > 0) {
       batchButtons.push(`<button id="batch-execute-splits" class="btn btn-sm" onclick="batchExecuteSplits()" style="background:var(--warning);border-color:var(--warning);color:white;">Execute All Splits (${splitItems.length})</button>`);
     }
+    if (mergeItems.length > 0) {
+      batchButtons.push(`<button id="batch-execute-merges" class="btn btn-sm" onclick="batchExecuteMerges()" style="background:var(--primary);border-color:var(--primary);color:white;">Accept All Merges (${mergeItems.length})</button>`);
+    }
     if (allIds.length > keepIds.length) {
-      batchButtons.push(`<button id="batch-approve-all-proposed" class="btn btn-sm btn-outline" onclick="batchApproveAllProposed()">Approve All Remaining</button>`);
+      batchButtons.push(`<button id="batch-approve-all-proposed" class="btn btn-sm btn-outline" onclick="batchApproveAllProposed()">Approve All Remaining Keeps and Splits</button>`);
     }
 
     const batchBar = batchButtons.length > 0 ? `
@@ -1307,6 +1440,186 @@ async function aiGrainReview() {
   aiSetWorking(false);
 }
 
+// ═══════════════════════════════════════════════════════
+// Document Cleanup (pre-grain-review)
+// ═══════════════════════════════════════════════════════
+
+async function aiCleanupPages() {
+  if (!aiAvailable) { toast('AI is not configured. Set ANTHROPIC_API_KEY and restart.', 'error'); return; }
+  const kcs = await api('GET', `/api/staging/${currentSessionId}/kcs?stage_status=proposed`);
+  if (kcs.length === 0) { toast('No proposed KCs to clean up.', 'error'); return; }
+
+  aiSetWorking(true);
+  try {
+    const result = await api('POST', `/api/staging/${currentSessionId}/ai/cleanup`, {
+      kc_ids: kcs.map(k => k.id),
+    });
+
+    const classifications = result.classifications || [];
+    const kcLookup = Object.fromEntries(kcs.map(k => [k.id, k]));
+
+    const scaffolding = classifications.filter(c => c.category === 'scaffolding');
+    const structural = classifications.filter(c => c.category === 'structural');
+    const content = classifications.filter(c => c.category === 'content');
+
+    // Track which KCs are selected for removal
+    window._cleanupSelections = new Set([
+      ...scaffolding.map(c => c.kc_id),
+      ...structural.map(c => c.kc_id),
+    ]);
+
+    const totalRemove = scaffolding.length + structural.length;
+
+    function renderCleanupCard(c, checked) {
+      const kc = kcLookup[c.kc_id];
+      const sourceText = kc?.source_text || '';
+      const preview = sourceText.length > 200 ? sourceText.substring(0, 200) + '...' : sourceText;
+      return `
+      <div class="kc-detail" id="cleanup-${c.kc_id}" style="display:flex; gap:10px; align-items:flex-start;">
+        <input type="checkbox" ${checked ? 'checked' : ''}
+          onchange="toggleCleanupSelection('${c.kc_id}', this.checked)"
+          style="margin-top:4px; flex-shrink:0; width:16px; height:16px; cursor:pointer;">
+        <div style="flex:1; min-width:0;">
+          <div class="kc-header">
+            <span class="kc-id">${c.kc_id}</span>
+            <span class="meta">${escapeHtml(c.page_label || c.kc_id)}</span>
+          </div>
+          <div class="kc-desc" style="font-size:13px;">${escapeHtml(c.reasoning || '')}</div>
+          ${preview ? `<div class="source-text" style="font-size:12px; max-height:80px; overflow:hidden;">${escapeHtml(preview)}</div>` : ''}
+        </div>
+      </div>`;
+    }
+
+    function renderContentCard(c) {
+      const kc = kcLookup[c.kc_id];
+      const sourceText = kc?.source_text || '';
+      const preview = sourceText.length > 150 ? sourceText.substring(0, 150) + '...' : sourceText;
+      return `
+      <div class="kc-detail" style="border-left:3px solid var(--success); padding:8px 12px;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <span class="kc-id" style="font-size:12px;">${c.kc_id}</span>
+          <span class="meta">${escapeHtml(c.page_label || '')}</span>
+        </div>
+        ${preview ? `<div style="font-size:12px; color:var(--text-muted); margin-top:4px;">${escapeHtml(preview)}</div>` : ''}
+      </div>`;
+    }
+
+    let html = '';
+
+    // Batch action bar
+    html += `
+      <div data-batch-bar style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px;padding:10px 12px;background:#fef2f2;border-radius:8px;">
+        <span style="font-size:13px;color:#555;">${classifications.length} pages analyzed:</span>
+        <button id="cleanup-remove-btn" class="btn btn-sm btn-danger" onclick="batchCleanupRemove()">
+          Remove Selected (${totalRemove})
+        </button>
+        <button class="btn btn-sm btn-outline" onclick="cleanupSelectAll(true)">Select All Suggested</button>
+        <button class="btn btn-sm btn-outline" onclick="cleanupSelectAll(false)">Deselect All</button>
+      </div>`;
+
+    // Scaffolding section
+    if (scaffolding.length > 0) {
+      html += `
+        <div style="margin-bottom:16px;">
+          <div style="font-size:13px;font-weight:600;color:#991b1b;margin-bottom:8px;padding:6px 10px;background:#fef2f2;border-radius:6px;border-left:3px solid #dc2626;">
+            Scaffolding — ${scaffolding.length} page(s) (title, TOC, glossary, etc.)
+          </div>
+          ${scaffolding.map(c => renderCleanupCard(c, true)).join('')}
+        </div>`;
+    }
+
+    // Structural section
+    if (structural.length > 0) {
+      html += `
+        <div style="margin-bottom:16px;">
+          <div style="font-size:13px;font-weight:600;color:#92400e;margin-bottom:8px;padding:6px 10px;background:#fffbeb;border-radius:6px;border-left:3px solid #d97706;">
+            Structural — ${structural.length} page(s) (overviews, introductions, narrative)
+          </div>
+          ${structural.map(c => renderCleanupCard(c, true)).join('')}
+        </div>`;
+    }
+
+    // Content section (collapsed by default if many)
+    if (content.length > 0) {
+      html += `
+        <div style="margin-bottom:16px;">
+          <div style="font-size:13px;font-weight:600;color:#065f46;margin-bottom:8px;padding:6px 10px;background:#d1fae5;border-radius:6px;border-left:3px solid #16a34a;cursor:pointer;"
+               onclick="this.nextElementSibling.classList.toggle('hidden'); this.querySelector('.chevron').textContent = this.nextElementSibling.classList.contains('hidden') ? '▶' : '▼'">
+            <span class="chevron">▼</span> Content — ${content.length} page(s) will be kept
+          </div>
+          <div>${content.map(c => renderContentCard(c)).join('')}</div>
+        </div>`;
+    }
+
+    showAIResults(`Page Cleanup — ${scaffolding.length + structural.length} of ${classifications.length} pages suggested for removal`, html, {aboveKCs: true});
+    toast(`Cleanup analysis complete: ${scaffolding.length} scaffolding, ${structural.length} structural, ${content.length} content pages`);
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+  aiSetWorking(false);
+}
+
+function toggleCleanupSelection(kcId, checked) {
+  if (!window._cleanupSelections) window._cleanupSelections = new Set();
+  if (checked) {
+    window._cleanupSelections.add(kcId);
+  } else {
+    window._cleanupSelections.delete(kcId);
+  }
+  const btn = document.getElementById('cleanup-remove-btn');
+  if (btn) btn.textContent = `Remove Selected (${window._cleanupSelections.size})`;
+}
+
+function cleanupSelectAll(selectSuggested) {
+  const checkboxes = document.querySelectorAll('#ai-results-content input[type="checkbox"]');
+  if (selectSuggested) {
+    // Re-check all checkboxes (reset to AI suggestions)
+    checkboxes.forEach(cb => { cb.checked = true; toggleCleanupSelection(cb.closest('.kc-detail').id.replace('cleanup-', ''), true); });
+  } else {
+    checkboxes.forEach(cb => { cb.checked = false; });
+    window._cleanupSelections = new Set();
+    const btn = document.getElementById('cleanup-remove-btn');
+    if (btn) btn.textContent = 'Remove Selected (0)';
+  }
+}
+
+async function batchCleanupRemove() {
+  const selections = window._cleanupSelections;
+  if (!selections || selections.size === 0) { toast('No pages selected for removal.', 'error'); return; }
+  if (!confirm(`Remove ${selections.size} page(s)? This deletes them from the staging session.`)) return;
+
+  let removed = 0;
+  let errors = 0;
+  for (const kcId of selections) {
+    try {
+      await api('DELETE', `/api/staging/${currentSessionId}/kcs/${kcId}`);
+      const card = document.getElementById(`cleanup-${kcId}`);
+      if (card) {
+        card.style.opacity = '0.3';
+        card.style.pointerEvents = 'none';
+        const cb = card.querySelector('input[type="checkbox"]');
+        if (cb) cb.disabled = true;
+      }
+      removed++;
+    } catch (e) {
+      errors++;
+    }
+  }
+
+  window._cleanupSelections = new Set();
+  const btn = document.getElementById('cleanup-remove-btn');
+  if (btn) {
+    btn.textContent = `${removed} removed`;
+    btn.disabled = true;
+    btn.classList.remove('btn-danger');
+    btn.classList.add('btn-outline');
+  }
+
+  toast(`${removed} page(s) removed${errors ? `, ${errors} error(s)` : ''}`);
+  loadStagedKCs();
+  refreshSession();
+}
+
 async function aiFormulate() {
   if (!aiAvailable) { toast('AI is not configured. Set ANTHROPIC_API_KEY and restart.', 'error'); return; }
   const allKcs = await api('GET', `/api/staging/${currentSessionId}/kcs?stage_status=grain_approved`);
@@ -1321,11 +1634,21 @@ async function aiFormulate() {
 
   aiSetWorking(true);
   try {
-    const result = await api('POST', `/api/staging/${currentSessionId}/ai/formulate`, {
-      kc_ids: kcs.map(k => k.id),
-    });
+    // Process in batches to avoid output truncation
+    const formulations = [];
+    const totalBatches = Math.ceil(kcs.length / AI_BATCH_FORMULATE);
+    for (let i = 0; i < kcs.length; i += AI_BATCH_FORMULATE) {
+      const batch = kcs.slice(i, i + AI_BATCH_FORMULATE);
+      const batchNum = Math.floor(i / AI_BATCH_FORMULATE) + 1;
+      if (totalBatches > 1) {
+        aiSetWorking(true, `Formulating: batch ${batchNum} of ${totalBatches} (${formulations.length}/${kcs.length} done)...`);
+      }
+      const result = await api('POST', `/api/staging/${currentSessionId}/ai/formulate`, {
+        kc_ids: batch.map(k => k.id),
+      });
+      formulations.push(...(result.formulations || []));
+    }
 
-    const formulations = result.formulations || [];
     const kcLookup = Object.fromEntries(kcs.map(k => [k.id, k]));
     const html = formulations.map(f => {
       const kc = kcLookup[f.kc_id];
@@ -1362,8 +1685,22 @@ async function aiFormulate() {
     loadStagedKCs();
     refreshSession();
     toast(`Formulation complete: ${formulations.length} KCs written`);
+    // Reset button text on success (in case it was a retry)
+    const btnOk = document.getElementById('btn-ai-formulate');
+    if (btnOk) {
+      btnOk.textContent = 'Formulate KCs (grain approved)';
+      btnOk.classList.remove('btn-warning');
+      btnOk.classList.add('btn-primary');
+    }
   } catch (e) {
     toast(e.message, 'error');
+    // Change button to retry on failure
+    const btn = document.getElementById('btn-ai-formulate');
+    if (btn) {
+      btn.textContent = 'Retry Formulation';
+      btn.classList.remove('btn-primary');
+      btn.classList.add('btn-warning');
+    }
   }
   aiSetWorking(false);
 }
@@ -2910,6 +3247,7 @@ async function applyConversationSplit(childrenJson) {
     toast(kcId + ' split into ' + result.children.length + ' KCs: ' + result.children.map(function(c) { return c.id; }).join(', '));
     markAICardResolved(kcId, 'Split → ' + result.children.length + ' KCs (via discussion)', 'var(--warning)');
     removeFromKeepsList(kcId);
+    removeFromPendingSplits(kcId);
     closeConversation();
     loadStagedKCs();
     refreshSession();
@@ -2925,8 +3263,24 @@ function removeFromKeepsList(kcId) {
     btn.remove();
   } else {
     btn.setAttribute('data-original-ids', JSON.stringify(ids));
-    btn.setAttribute('onclick', 'batchApproveGrain(' + JSON.stringify(ids).replace(/"/g, '&quot;') + ')');
-    btn.textContent = 'Approve All Keeps (' + ids.length + ')';
+    btn.onclick = function() { batchApproveGrain(ids); };
+    btn.textContent = 'Approve Remaining Keeps (' + ids.length + ')';
+  }
+}
+
+function removeFromPendingSplits(kcId) {
+  window._pendingSplits = (window._pendingSplits || []).filter(function(s) { return s.kc_id !== kcId; });
+  updateSplitsButtonLabel();
+}
+
+function updateSplitsButtonLabel() {
+  var btn = document.getElementById('batch-execute-splits');
+  if (!btn) return;
+  var count = (window._pendingSplits || []).length;
+  if (count === 0) {
+    btn.remove();
+  } else {
+    btn.textContent = 'Execute Remaining Splits (' + count + ')';
   }
 }
 
@@ -2937,6 +3291,7 @@ async function applyConversationApprove() {
     await api('PATCH', '/api/staging/' + currentSessionId + '/kcs/' + kcId, { stage_status: 'grain_approved' });
     toast(kcId + ' → grain_approved');
     markAICardResolved(kcId, 'Approved (via discussion)', 'var(--success)');
+    removeFromPendingSplits(kcId);
     closeConversation();
     loadStagedKCs();
     refreshSession();

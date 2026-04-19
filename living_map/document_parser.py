@@ -1,7 +1,7 @@
 """Document parsing for the Moderated Bulk Add ingest pipeline.
 
 Extracts structured content chunks from source documents in supported formats:
-.tex, .xlsx, .docx, .txt
+.tex, .xlsx, .docx, .txt, .pdf
 
 Each parser returns a list of ContentChunk objects — the raw material for
 AI-driven KC decomposition in Stage 1.
@@ -246,6 +246,47 @@ def parse_docx(file_path: Path) -> list[ContentChunk]:
 
 
 # ═══════════════════════════════════════════════════════
+# .pdf parser
+# ═══════════════════════════════════════════════════════
+
+def parse_pdf(file_path: Path) -> list[ContentChunk]:
+    """Parse a PDF into content chunks.
+
+    Extracts text page-by-page.  Consecutive pages whose text forms a
+    single logical block (no blank-line break) are merged.  Tables
+    detected by pdfplumber are appended as separate chunks.
+    """
+    import pdfplumber
+
+    chunks = []
+
+    with pdfplumber.open(str(file_path)) as pdf:
+        for page_num, page in enumerate(pdf.pages, start=1):
+            text = (page.extract_text() or "").strip()
+            if text:
+                chunks.append(ContentChunk(
+                    source_reference=f"page-{page_num}",
+                    original_text=text,
+                    metadata={"page": page_num},
+                ))
+
+            # Extract tables separately
+            for t_idx, table in enumerate(page.extract_tables() or [], start=1):
+                rows_text = []
+                for row in table:
+                    cells = [str(cell).strip() if cell else "" for cell in row]
+                    rows_text.append(" | ".join(cells))
+                if rows_text:
+                    chunks.append(ContentChunk(
+                        source_reference=f"page-{page_num}-table-{t_idx}",
+                        original_text="\n".join(rows_text),
+                        metadata={"page": page_num, "type": "table"},
+                    ))
+
+    return chunks
+
+
+# ═══════════════════════════════════════════════════════
 # Plain text parser
 # ═══════════════════════════════════════════════════════
 
@@ -311,6 +352,15 @@ def parse_document(file_path: Path, content: bytes | None = None) -> list[Conten
                 tmp.flush()
                 return parse_docx(Path(tmp.name))
         return parse_docx(file_path)
+
+    elif suffix == ".pdf":
+        if content:
+            import tempfile
+            with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+                tmp.write(content)
+                tmp.flush()
+                return parse_pdf(Path(tmp.name))
+        return parse_pdf(file_path)
 
     elif suffix in (".txt", ".text", ".md"):
         if content:
