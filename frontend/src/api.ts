@@ -206,6 +206,10 @@ export const api = {
     post<Edge>("/edges", { source_kc_id: source, target_kc_id: target }),
   deleteEdge: (edgeId: number) => del(`/edges/${edgeId}`),
 
+  createSchema: (
+    frameId: string,
+    data: { id: string; name: string; description?: string; parent_schema_id?: string | null },
+  ) => post<Schema>(`/frames/${encodeURIComponent(frameId)}/schemas`, data),
   updateSchema: (id: string, data: { name?: string; description?: string; parent_schema_id?: string | null }) =>
     patch<Schema>(`/schemas/${encodeURIComponent(id)}`, data),
   deleteSchema: (id: string) => del(`/schemas/${encodeURIComponent(id)}`),

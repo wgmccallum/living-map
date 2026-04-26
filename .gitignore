@@ -11,9 +11,10 @@ frontend/node_modules/
 # Built frontend (rebuilt on deploy)
 living_map/static/
 
-# Database copies (keep only living_map.db)
+# Database copies (production uses living_map.live.db; living_map.db is local working copy)
+living_map.db
 living_map.seed.db
-living_map.live.db
+living_map.live.db.broken
 living_map*.db-shm
 living_map*.db-wal
 sandboxes/

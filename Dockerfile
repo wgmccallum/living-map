@@ -18,7 +18,7 @@ RUN cd frontend && npm install && npm run build
 
 # Copy application code
 COPY living_map/ living_map/
-COPY living_map.db .
+COPY living_map.live.db ./living_map.db
 
 EXPOSE 8000
 

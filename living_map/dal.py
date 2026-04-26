@@ -607,12 +607,16 @@ class DAL:
             return None
         sets = ["updated_at = ?"]
         params: list = [_now()]
-        if update.name is not None:
+        provided = update.model_fields_set
+        if "name" in provided:
             sets.append("name = ?")
             params.append(update.name)
-        if update.description is not None:
+        if "description" in provided:
             sets.append("description = ?")
             params.append(update.description)
+        if "parent_schema_id" in provided:
+            sets.append("parent_schema_id = ?")
+            params.append(update.parent_schema_id)
         params.append(schema_id)
         self.conn.execute(f"UPDATE schemas SET {', '.join(sets)} WHERE id = ?", params)
         self.conn.commit()

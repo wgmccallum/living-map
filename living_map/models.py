@@ -189,6 +189,7 @@ class FrameUpdate(BaseModel):
 class SchemaUpdate(BaseModel):
     name: str | None = None
     description: str | None = None
+    parent_schema_id: str | None = None
 
 
 class SchemaKCsAdd(BaseModel):

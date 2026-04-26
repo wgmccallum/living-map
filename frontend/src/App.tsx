@@ -87,6 +87,27 @@ export function App() {
   const [edgeSource, setEdgeSource] = useState<string | null>(null);
   const [addEdgeError, setAddEdgeError] = useState<string | null>(null);
 
+  // Add Schema state
+  const [showAddSchemaForm, setShowAddSchemaForm] = useState(false);
+  const [newSchemaId, setNewSchemaId] = useState("");
+  const [newSchemaName, setNewSchemaName] = useState("");
+  const [newSchemaDesc, setNewSchemaDesc] = useState("");
+  const [newSchemaParentId, setNewSchemaParentId] = useState<string>("");
+  const [newSchemaKCs, setNewSchemaKCs] = useState<Set<string>>(new Set());
+  const [newSchemaKCFilter, setNewSchemaKCFilter] = useState("");
+  const [addSchemaError, setAddSchemaError] = useState<string | null>(null);
+
+  const resetAddSchemaForm = () => {
+    setShowAddSchemaForm(false);
+    setNewSchemaId("");
+    setNewSchemaName("");
+    setNewSchemaDesc("");
+    setNewSchemaParentId("");
+    setNewSchemaKCs(new Set());
+    setNewSchemaKCFilter("");
+    setAddSchemaError(null);
+  };
+
   // Quotient state
   const [quotientSchemaIds, setQuotientSchemaIds] = useState<Set<string>>(new Set());
   const [pendingSchemaIds, setPendingSchemaIds] = useState<Set<string>>(new Set());
@@ -621,6 +642,19 @@ export function App() {
               + Add KC
             </button>
             <button
+              className={`toolbar-btn ${showAddSchemaForm ? "active" : ""}`}
+              onClick={() => {
+                if (showAddSchemaForm) {
+                  resetAddSchemaForm();
+                } else {
+                  setShowAddSchemaForm(true);
+                  setAddSchemaError(null);
+                }
+              }}
+            >
+              + Add Schema
+            </button>
+            <button
               className={`toolbar-btn ${addEdgeMode ? "active" : ""}`}
               onClick={() => {
                 setAddEdgeMode(!addEdgeMode);
@@ -710,6 +744,111 @@ export function App() {
                   <button className="toolbar-btn cancel" onClick={() => { setShowAddKCForm(false); setNewKCSchemaId(""); setNewKCId(""); setNewKCDesc(""); }}>Cancel</button>
                 </div>
                 {addKCError && <div className="domain-error">{addKCError}</div>}
+              </div>
+            )}
+            {showAddSchemaForm && activeFrame && (
+              <div className="add-domain-form add-schema-form">
+                <label className="form-label">Schema ID</label>
+                <input
+                  type="text"
+                  placeholder="e.g. CNM-8240"
+                  value={newSchemaId}
+                  onChange={(e) => setNewSchemaId(e.target.value)}
+                  className="domain-input"
+                />
+                <label className="form-label">Name</label>
+                <input
+                  type="text"
+                  placeholder="Schema name"
+                  value={newSchemaName}
+                  onChange={(e) => setNewSchemaName(e.target.value)}
+                  className="domain-input"
+                />
+                <label className="form-label">Description (optional)</label>
+                <textarea
+                  placeholder="Schema description"
+                  value={newSchemaDesc}
+                  onChange={(e) => setNewSchemaDesc(e.target.value)}
+                  className="domain-input"
+                  rows={2}
+                />
+                <label className="form-label">Parent schema (optional)</label>
+                <select
+                  className="domain-input"
+                  value={newSchemaParentId}
+                  onChange={(e) => setNewSchemaParentId(e.target.value)}
+                >
+                  <option value="">— none (top-level) —</option>
+                  {activeFrame.schemas.map((s) => (
+                    <option key={s.id} value={s.id}>{s.id}: {s.name}</option>
+                  ))}
+                </select>
+                <label className="form-label">
+                  KCs to include ({newSchemaKCs.size} selected)
+                </label>
+                <input
+                  type="text"
+                  placeholder="Filter KCs..."
+                  value={newSchemaKCFilter}
+                  onChange={(e) => setNewSchemaKCFilter(e.target.value)}
+                  className="domain-input"
+                />
+                <div className="schema-kc-list">
+                  {frameFilteredKCs
+                    .filter((kc) => {
+                      const q = newSchemaKCFilter.toLowerCase();
+                      if (!q) return true;
+                      return (
+                        kc.id.toLowerCase().includes(q) ||
+                        kc.short_description.toLowerCase().includes(q)
+                      );
+                    })
+                    .map((kc) => (
+                      <label key={kc.id} className="schema-kc-row">
+                        <input
+                          type="checkbox"
+                          checked={newSchemaKCs.has(kc.id)}
+                          onChange={(e) => {
+                            const next = new Set(newSchemaKCs);
+                            if (e.target.checked) next.add(kc.id);
+                            else next.delete(kc.id);
+                            setNewSchemaKCs(next);
+                          }}
+                        />
+                        <span className="schema-kc-id">{kc.id}</span>
+                        <span className="schema-kc-desc">{kc.short_description}</span>
+                      </label>
+                    ))}
+                </div>
+                <div className="form-actions">
+                  <button
+                    className="toolbar-btn create"
+                    disabled={!newSchemaId.trim() || !newSchemaName.trim()}
+                    onClick={async () => {
+                      setAddSchemaError(null);
+                      try {
+                        await api.createSchema(activeFrame.id, {
+                          id: newSchemaId.trim(),
+                          name: newSchemaName.trim(),
+                          description: newSchemaDesc.trim() || undefined,
+                          parent_schema_id: newSchemaParentId || null,
+                        });
+                        if (newSchemaKCs.size > 0) {
+                          await api.addKCsToSchema(newSchemaId.trim(), Array.from(newSchemaKCs));
+                        }
+                        resetAddSchemaForm();
+                        await refreshData();
+                      } catch (e) {
+                        const msg = e instanceof Error ? e.message : String(e);
+                        setAddSchemaError(msg.replace(/^\d+:\s*/, ""));
+                      }
+                    }}
+                  >
+                    Create
+                  </button>
+                  <button className="toolbar-btn cancel" onClick={resetAddSchemaForm}>Cancel</button>
+                </div>
+                {addSchemaError && <div className="domain-error">{addSchemaError}</div>}
               </div>
             )}
             {addEdgeError && (

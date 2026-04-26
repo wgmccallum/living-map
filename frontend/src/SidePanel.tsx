@@ -110,6 +110,10 @@ export function SidePanel({ selectedNodeId, kcs, edges, frame, onSelectNode, onD
         await api.updateKC(selectedNodeId, { [field]: value });
       } else if (field === "schema_name" && schemaId) {
         await api.updateSchema(schemaId, { name: value });
+      } else if (field === "schema_description" && schemaId) {
+        await api.updateSchema(schemaId, { description: value });
+      } else if (field === "schema_parent" && schemaId) {
+        await api.updateSchema(schemaId, { parent_schema_id: value || null });
       } else if (field === "domain_name" && domainId) {
         await api.updateMathDomain(domainId, { name: value });
       } else if (field === "domain_description" && domainId) {
@@ -318,16 +322,50 @@ export function SidePanel({ selectedNodeId, kcs, edges, frame, onSelectNode, onD
             </div>
           </div>
 
-          {parentSchema && (
-            <div className="detail-row">
-              <div className="detail-label">Parent Schema</div>
-              <div className="detail-value">
-                <span className="node-link" onClick={() => onSelectNode(`schema-${parentSchema.id}`)}>
-                  {parentSchema.id}: {parentSchema.name}
-                </span>
-              </div>
+          <div className="detail-row">
+            <div className="detail-label">Parent Schema</div>
+            <div className="detail-value">
+              {editingField === "schema_parent" ? (
+                <div className="add-item-form">
+                  <select
+                    className="edit-input"
+                    autoFocus
+                    defaultValue={schema.parent_schema_id || ""}
+                    onChange={(e) => {
+                      saveField("schema_parent", e.target.value);
+                    }}
+                  >
+                    <option value="">— none (top-level) —</option>
+                    {frame.schemas
+                      .filter((s) => s.id !== schemaId)
+                      .map((s) => (
+                        <option key={s.id} value={s.id}>{s.id}: {s.name}</option>
+                      ))}
+                  </select>
+                  <button className="edit-cancel" onClick={() => setEditingField(null)}>Cancel</button>
+                </div>
+              ) : parentSchema ? (
+                <>
+                  <span className="node-link" onClick={() => onSelectNode(`schema-${parentSchema.id}`)}>
+                    {parentSchema.id}: {parentSchema.name}
+                  </span>{" "}
+                  <button className="add-btn" onClick={() => setEditingField("schema_parent")}>Change</button>
+                </>
+              ) : (
+                <>
+                  <span style={{ color: "#aaa" }}>None (top-level)</span>{" "}
+                  <button className="add-btn" onClick={() => setEditingField("schema_parent")}>Set parent</button>
+                </>
+              )}
             </div>
-          )}
+          </div>
+
+          <div className="detail-row">
+            <div className="detail-label">Description</div>
+            <div className="detail-value">
+              <EditableField field="schema_description" value={schema.description || ""} multiline />
+            </div>
+          </div>
 
           {childSchemas.length > 0 && (
             <div className="detail-row">
