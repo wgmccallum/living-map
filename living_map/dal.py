@@ -523,7 +523,7 @@ class DAL:
         if not row:
             return None
         schemas = [
-            self.get_schema(r["id"])
+            self.get_schema(frame_id, r["id"])
             for r in self.conn.execute(
                 "SELECT id FROM schemas WHERE frame_id = ? ORDER BY id", (frame_id,)
             )
@@ -565,6 +565,8 @@ class DAL:
         return True
 
     # ── Schemas ──
+    # Schemas are identified by (frame_id, id). Schema IDs are unique per frame,
+    # not globally — a forked frame keeps the source frame's schema IDs.
 
     def create_schema(self, frame_id: str, schema) -> dict:
         now = _now()
@@ -575,17 +577,20 @@ class DAL:
              schema.parent_schema_id, now, now),
         )
         self.conn.commit()
-        return self.get_schema(schema.id)
+        return self.get_schema(frame_id, schema.id)
 
-    def get_schema(self, schema_id: str) -> dict | None:
-        row = self.conn.execute("SELECT * FROM schemas WHERE id = ?", (schema_id,)).fetchone()
+    def get_schema(self, frame_id: str, schema_id: str) -> dict | None:
+        row = self.conn.execute(
+            "SELECT * FROM schemas WHERE frame_id = ? AND id = ?",
+            (frame_id, schema_id),
+        ).fetchone()
         if not row:
             return None
         kc_ids = [
             r["kc_id"]
             for r in self.conn.execute(
-                "SELECT kc_id FROM schema_kcs WHERE schema_id = ? ORDER BY kc_id",
-                (schema_id,),
+                "SELECT kc_id FROM schema_kcs WHERE frame_id = ? AND schema_id = ? ORDER BY kc_id",
+                (frame_id, schema_id),
             )
         ]
         return {
@@ -599,10 +604,13 @@ class DAL:
         rows = self.conn.execute(
             "SELECT id FROM schemas WHERE frame_id = ? ORDER BY id", (frame_id,)
         ).fetchall()
-        return [self.get_schema(r["id"]) for r in rows]
+        return [self.get_schema(frame_id, r["id"]) for r in rows]
 
-    def update_schema(self, schema_id: str, update) -> dict | None:
-        existing = self.conn.execute("SELECT id FROM schemas WHERE id = ?", (schema_id,)).fetchone()
+    def update_schema(self, frame_id: str, schema_id: str, update) -> dict | None:
+        existing = self.conn.execute(
+            "SELECT id FROM schemas WHERE frame_id = ? AND id = ?",
+            (frame_id, schema_id),
+        ).fetchone()
         if not existing:
             return None
         sets = ["updated_at = ?"]
@@ -617,52 +625,96 @@ class DAL:
         if "parent_schema_id" in provided:
             sets.append("parent_schema_id = ?")
             params.append(update.parent_schema_id)
-        params.append(schema_id)
-        self.conn.execute(f"UPDATE schemas SET {', '.join(sets)} WHERE id = ?", params)
+        params.extend([frame_id, schema_id])
+        self.conn.execute(
+            f"UPDATE schemas SET {', '.join(sets)} WHERE frame_id = ? AND id = ?",
+            params,
+        )
         self.conn.commit()
-        return self.get_schema(schema_id)
+        return self.get_schema(frame_id, schema_id)
 
-    def delete_schema(self, schema_id: str) -> bool:
-        existing = self.conn.execute("SELECT id FROM schemas WHERE id = ?", (schema_id,)).fetchone()
-        if not existing:
-            return False
-        self.conn.execute("DELETE FROM schemas WHERE id = ?", (schema_id,))
-        self.conn.commit()
-        return True
-
-    def add_kcs_to_schema(self, schema_id: str, kc_ids: list[str]) -> dict | None:
-        existing = self.conn.execute("SELECT id FROM schemas WHERE id = ?", (schema_id,)).fetchone()
-        if not existing:
-            return None
-        for kc_id in kc_ids:
-            self.conn.execute(
-                "INSERT OR IGNORE INTO schema_kcs (schema_id, kc_id) VALUES (?, ?)",
-                (schema_id, kc_id),
-            )
-        self.conn.commit()
-        return self.get_schema(schema_id)
-
-    def remove_kc_from_schema(self, schema_id: str, kc_id: str) -> bool:
-        row = self.conn.execute(
-            "SELECT * FROM schema_kcs WHERE schema_id = ? AND kc_id = ?",
-            (schema_id, kc_id),
+    def delete_schema(self, frame_id: str, schema_id: str) -> bool:
+        existing = self.conn.execute(
+            "SELECT id FROM schemas WHERE frame_id = ? AND id = ?",
+            (frame_id, schema_id),
         ).fetchone()
-        if not row:
+        if not existing:
             return False
         self.conn.execute(
-            "DELETE FROM schema_kcs WHERE schema_id = ? AND kc_id = ?",
-            (schema_id, kc_id),
+            "DELETE FROM schemas WHERE frame_id = ? AND id = ?",
+            (frame_id, schema_id),
         )
         self.conn.commit()
         return True
 
-    def kc_schemas(self, kc_id: str) -> list[dict]:
-        """All schemas containing this KC (across all frames)."""
+    def add_kcs_to_schema(self, frame_id: str, schema_id: str, kc_ids: list[str]) -> dict | None:
+        existing = self.conn.execute(
+            "SELECT id FROM schemas WHERE frame_id = ? AND id = ?",
+            (frame_id, schema_id),
+        ).fetchone()
+        if not existing:
+            return None
+        for kc_id in kc_ids:
+            self.conn.execute(
+                "INSERT OR IGNORE INTO schema_kcs (frame_id, schema_id, kc_id) VALUES (?, ?, ?)",
+                (frame_id, schema_id, kc_id),
+            )
+        self.conn.commit()
+        return self.get_schema(frame_id, schema_id)
+
+    def remove_kc_from_schema(self, frame_id: str, schema_id: str, kc_id: str) -> bool:
+        row = self.conn.execute(
+            "SELECT 1 FROM schema_kcs WHERE frame_id = ? AND schema_id = ? AND kc_id = ?",
+            (frame_id, schema_id, kc_id),
+        ).fetchone()
+        if not row:
+            return False
+        self.conn.execute(
+            "DELETE FROM schema_kcs WHERE frame_id = ? AND schema_id = ? AND kc_id = ?",
+            (frame_id, schema_id, kc_id),
+        )
+        self.conn.commit()
+        return True
+
+    def kc_schemas(self, frame_id: str, kc_id: str) -> list[dict]:
+        """Schemas in this frame that contain this KC."""
         rows = self.conn.execute(
-            "SELECT schema_id FROM schema_kcs WHERE kc_id = ? ORDER BY schema_id",
-            (kc_id,),
+            "SELECT schema_id FROM schema_kcs WHERE frame_id = ? AND kc_id = ? ORDER BY schema_id",
+            (frame_id, kc_id),
         ).fetchall()
-        return [self.get_schema(r["schema_id"]) for r in rows]
+        return [self.get_schema(frame_id, r["schema_id"]) for r in rows]
+
+    def fork_frame(self, source_frame_id: str, new_frame) -> dict:
+        """Create a new frame as a copy of source_frame_id, cloning all schemas
+        and their KC memberships. KCs and prerequisite edges are global and
+        therefore shared between source and fork.
+        """
+        # Verify source exists
+        if not self.conn.execute(
+            "SELECT id FROM frames WHERE id = ?", (source_frame_id,)
+        ).fetchone():
+            raise ValueError(f"source frame {source_frame_id} does not exist")
+        # Create the new frame
+        self.create_frame(new_frame)
+        # Copy schemas (preserving ids and parent links)
+        self.conn.execute(
+            """
+            INSERT INTO schemas (id, frame_id, name, description, parent_schema_id, created_at, updated_at)
+            SELECT id, ?, name, description, parent_schema_id, created_at, updated_at
+            FROM schemas WHERE frame_id = ?
+            """,
+            (new_frame.id, source_frame_id),
+        )
+        # Copy schema_kcs
+        self.conn.execute(
+            """
+            INSERT INTO schema_kcs (frame_id, schema_id, kc_id)
+            SELECT ?, schema_id, kc_id FROM schema_kcs WHERE frame_id = ?
+            """,
+            (new_frame.id, source_frame_id),
+        )
+        self.conn.commit()
+        return self.get_frame(new_frame.id)
 
     # ── Bulk Import ──
 
@@ -729,8 +781,8 @@ class DAL:
                     )
                     for kc_id in schema.kc_ids:
                         self.conn.execute(
-                            "INSERT OR IGNORE INTO schema_kcs (schema_id, kc_id) VALUES (?, ?)",
-                            (schema.id, kc_id),
+                            "INSERT OR IGNORE INTO schema_kcs (frame_id, schema_id, kc_id) VALUES (?, ?, ?)",
+                            (schema.frame_id, schema.id, kc_id),
                         )
                     inserted.add(schema.id)
                     counts["schemas"] += 1

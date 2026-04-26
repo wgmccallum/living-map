@@ -15,6 +15,7 @@ living_map/static/
 living_map.db
 living_map.seed.db
 living_map.live.db.broken
+*.pre-migration
 living_map*.db-shm
 living_map*.db-wal
 sandboxes/

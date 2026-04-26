@@ -155,7 +155,8 @@ export const api = {
   getKC: (id: string) => get<KC>(`/kcs/${encodeURIComponent(id)}`),
   getKCAncestors: (id: string) => get<string[]>(`/kcs/${encodeURIComponent(id)}/ancestors`),
   getKCDescendants: (id: string) => get<string[]>(`/kcs/${encodeURIComponent(id)}/descendants`),
-  getKCSchemas: (id: string) => get<Schema[]>(`/kcs/${encodeURIComponent(id)}/schemas`),
+  getKCSchemas: (frameId: string, kcId: string) =>
+    get<Schema[]>(`/frames/${encodeURIComponent(frameId)}/kcs/${encodeURIComponent(kcId)}/schemas`),
 
   listEdges: (params?: Record<string, string>) => {
     const qs = params ? "?" + new URLSearchParams(params).toString() : "";
@@ -166,10 +167,11 @@ export const api = {
   getFrame: (id: string) => get<Frame>(`/frames/${encodeURIComponent(id)}`),
   listSchemas: (frameId: string) =>
     get<Schema[]>(`/frames/${encodeURIComponent(frameId)}/schemas`),
-  getSchemaAtoms: (id: string) => get<string[]>(`/schemas/${encodeURIComponent(id)}/atoms`),
-  checkConvexity: (id: string) =>
+  getSchemaAtoms: (frameId: string, id: string) =>
+    get<string[]>(`/frames/${encodeURIComponent(frameId)}/schemas/${encodeURIComponent(id)}/atoms`),
+  checkConvexity: (frameId: string, id: string) =>
     get<{ status: string; missing_nodes?: string[] }>(
-      `/schemas/${encodeURIComponent(id)}/check-convexity`
+      `/frames/${encodeURIComponent(frameId)}/schemas/${encodeURIComponent(id)}/check-convexity`
     ),
 
   validateFrame: (frameId: string) =>
@@ -210,15 +212,20 @@ export const api = {
     frameId: string,
     data: { id: string; name: string; description?: string; parent_schema_id?: string | null },
   ) => post<Schema>(`/frames/${encodeURIComponent(frameId)}/schemas`, data),
-  updateSchema: (id: string, data: { name?: string; description?: string; parent_schema_id?: string | null }) =>
-    patch<Schema>(`/schemas/${encodeURIComponent(id)}`, data),
-  deleteSchema: (id: string) => del(`/schemas/${encodeURIComponent(id)}`),
-  addKCsToSchema: (schemaId: string, kcIds: string[]) =>
-    post<void>(`/schemas/${encodeURIComponent(schemaId)}/kcs`, { kc_ids: kcIds }),
-  removeKCFromSchema: (schemaId: string, kcId: string) =>
-    del(`/schemas/${encodeURIComponent(schemaId)}/kcs/${encodeURIComponent(kcId)}`),
-  getNextKCId: (schemaId: string) =>
-    get<{ next_id: string }>(`/schemas/${encodeURIComponent(schemaId)}/next-kc-id`),
+  updateSchema: (frameId: string, id: string, data: { name?: string; description?: string; parent_schema_id?: string | null }) =>
+    patch<Schema>(`/frames/${encodeURIComponent(frameId)}/schemas/${encodeURIComponent(id)}`, data),
+  deleteSchema: (frameId: string, id: string) =>
+    del(`/frames/${encodeURIComponent(frameId)}/schemas/${encodeURIComponent(id)}`),
+  addKCsToSchema: (frameId: string, schemaId: string, kcIds: string[]) =>
+    post<void>(`/frames/${encodeURIComponent(frameId)}/schemas/${encodeURIComponent(schemaId)}/kcs`, { kc_ids: kcIds }),
+  removeKCFromSchema: (frameId: string, schemaId: string, kcId: string) =>
+    del(`/frames/${encodeURIComponent(frameId)}/schemas/${encodeURIComponent(schemaId)}/kcs/${encodeURIComponent(kcId)}`),
+  getNextKCId: (frameId: string, schemaId: string) =>
+    get<{ next_id: string }>(`/frames/${encodeURIComponent(frameId)}/schemas/${encodeURIComponent(schemaId)}/next-kc-id`),
+  forkFrame: (
+    sourceFrameId: string,
+    data: { id: string; name: string; description?: string },
+  ) => post<Frame>(`/frames/${encodeURIComponent(sourceFrameId)}/fork`, data),
 
   // Math Domains CRUD
   listMathDomains: () => get<MathDomain[]>("/math-concepts"),

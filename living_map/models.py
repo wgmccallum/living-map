@@ -186,6 +186,13 @@ class FrameUpdate(BaseModel):
     description: str | None = None
 
 
+class ForkFrameRequest(BaseModel):
+    id: str
+    name: str
+    description: str | None = None
+    frame_type: str = "internal"
+
+
 class SchemaUpdate(BaseModel):
     name: str | None = None
     description: str | None = None

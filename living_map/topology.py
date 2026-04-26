@@ -34,8 +34,7 @@ def load_prereq_graph(frame_id: str, conn: sqlite3.Connection) -> nx.Graph:
         r["id"] for r in conn.execute(
             """SELECT DISTINCT kc.id FROM knowledge_components kc
                JOIN schema_kcs sk ON kc.id = sk.kc_id
-               JOIN schemas s ON sk.schema_id = s.id
-               WHERE s.frame_id = ?""",
+               WHERE sk.frame_id = ?""",
             (frame_id,),
         )
     }

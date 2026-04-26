@@ -99,22 +99,25 @@ CREATE TABLE IF NOT EXISTS frames (
     updated_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
 
--- Schemas
+-- Schemas (composite PK: schema IDs are unique per frame, not globally)
 CREATE TABLE IF NOT EXISTS schemas (
-    id               TEXT PRIMARY KEY,
+    id               TEXT NOT NULL,
     frame_id         TEXT NOT NULL REFERENCES frames(id) ON DELETE CASCADE,
     name             TEXT NOT NULL,
     description      TEXT,
-    parent_schema_id TEXT REFERENCES schemas(id) ON DELETE SET NULL,
+    parent_schema_id TEXT,  -- references (frame_id, parent_schema_id); enforced in app code
     created_at       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-    updated_at       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+    updated_at       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    PRIMARY KEY (frame_id, id)
 );
 
--- Schema <-> KC membership
+-- Schema <-> KC membership (composite FK to (frame_id, schema_id))
 CREATE TABLE IF NOT EXISTS schema_kcs (
-    schema_id TEXT NOT NULL REFERENCES schemas(id) ON DELETE CASCADE,
+    frame_id  TEXT NOT NULL,
+    schema_id TEXT NOT NULL,
     kc_id     TEXT NOT NULL REFERENCES knowledge_components(id) ON DELETE CASCADE,
-    PRIMARY KEY (schema_id, kc_id)
+    PRIMARY KEY (frame_id, schema_id, kc_id),
+    FOREIGN KEY (frame_id, schema_id) REFERENCES schemas(frame_id, id) ON DELETE CASCADE
 );
 
 -- Framework alignment items

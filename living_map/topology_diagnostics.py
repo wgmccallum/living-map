@@ -64,9 +64,7 @@ def _make_id(issue_type: str, *parts: Any) -> str:
 def _kc_to_schemas(frame_id: str, conn: sqlite3.Connection) -> dict[str, list[str]]:
     """Map each KC id to the list of (leaf) schemas containing it directly."""
     rows = conn.execute(
-        """SELECT sk.kc_id, sk.schema_id FROM schema_kcs sk
-           JOIN schemas s ON sk.schema_id = s.id
-           WHERE s.frame_id = ?""",
+        "SELECT kc_id, schema_id FROM schema_kcs WHERE frame_id = ?",
         (frame_id,),
     ).fetchall()
     out: dict[str, list[str]] = {}

@@ -24,26 +24,31 @@ from .graph_store import GraphStore
 # ── Atom Set Computation ──
 
 
-def compute_atom_set(schema_id: str, conn: sqlite3.Connection) -> set[str]:
+def compute_atom_set(frame_id: str, schema_id: str, conn: sqlite3.Connection) -> set[str]:
     """Compute At(σ) — the full atom set of a schema, including all nested children.
 
     At(σ) = direct KCs of σ  ∪  At(child₁)  ∪  At(child₂)  ∪  ...
+
+    Recursion stays within `frame_id` — child schemas in other frames are not
+    followed (each frame is its own schema tree).
     """
     direct = {
         r["kc_id"]
         for r in conn.execute(
-            "SELECT kc_id FROM schema_kcs WHERE schema_id = ?", (schema_id,)
+            "SELECT kc_id FROM schema_kcs WHERE frame_id = ? AND schema_id = ?",
+            (frame_id, schema_id),
         )
     }
     children = [
         r["id"]
         for r in conn.execute(
-            "SELECT id FROM schemas WHERE parent_schema_id = ?", (schema_id,)
+            "SELECT id FROM schemas WHERE frame_id = ? AND parent_schema_id = ?",
+            (frame_id, schema_id),
         )
     ]
     result = set(direct)
     for child_id in children:
-        result |= compute_atom_set(child_id, conn)
+        result |= compute_atom_set(frame_id, child_id, conn)
     return result
 
 
@@ -55,7 +60,7 @@ def compute_all_atom_sets(frame_id: str, conn: sqlite3.Connection) -> dict[str, 
             "SELECT id FROM schemas WHERE frame_id = ?", (frame_id,)
         )
     ]
-    return {sid: compute_atom_set(sid, conn) for sid in schemas}
+    return {sid: compute_atom_set(frame_id, sid, conn) for sid in schemas}
 
 
 # ── Constraint Validators ──
@@ -129,7 +134,8 @@ def check_downward_closure(frame_id: str, conn: sqlite3.Connection) -> dict[str,
     violations = []
     for sid in schemas_in_frame:
         children = conn.execute(
-            "SELECT id FROM schemas WHERE parent_schema_id = ?", (sid,)
+            "SELECT id FROM schemas WHERE frame_id = ? AND parent_schema_id = ?",
+            (frame_id, sid),
         ).fetchall()
         for child in children:
             if child["id"] not in schemas_in_frame:
@@ -351,7 +357,8 @@ def quotient_frame_by_schema(
 
     # Get schema name for the collapsed node
     schema_row = conn.execute(
-        "SELECT name FROM schemas WHERE id = ?", (schema_id,)
+        "SELECT name FROM schemas WHERE frame_id = ? AND id = ?",
+        (frame_id, schema_id),
     ).fetchone()
     schema_name = schema_row["name"] if schema_row else schema_id
 
@@ -454,7 +461,8 @@ def partial_quotient(
             raise ValueError(f"Schema {sid} lost convexity during iterated quotient")
 
         schema_row = conn.execute(
-            "SELECT name FROM schemas WHERE id = ?", (sid,)
+            "SELECT name FROM schemas WHERE frame_id = ? AND id = ?",
+            (frame_id, sid),
         ).fetchone()
         schema_name = schema_row["name"] if schema_row else sid
         collapsed_id = f"[{sid}]"

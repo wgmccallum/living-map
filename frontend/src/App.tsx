@@ -87,6 +87,21 @@ export function App() {
   const [edgeSource, setEdgeSource] = useState<string | null>(null);
   const [addEdgeError, setAddEdgeError] = useState<string | null>(null);
 
+  // Fork frame state
+  const [showForkForm, setShowForkForm] = useState(false);
+  const [forkId, setForkId] = useState("");
+  const [forkName, setForkName] = useState("");
+  const [forkDesc, setForkDesc] = useState("");
+  const [forkError, setForkError] = useState<string | null>(null);
+
+  const resetForkForm = () => {
+    setShowForkForm(false);
+    setForkId("");
+    setForkName("");
+    setForkDesc("");
+    setForkError(null);
+  };
+
   // Add Schema state
   const [showAddSchemaForm, setShowAddSchemaForm] = useState(false);
   const [newSchemaId, setNewSchemaId] = useState("");
@@ -302,6 +317,83 @@ export function App() {
               <option key={f.id} value={f.id}>{f.name}</option>
             ))}
           </select>
+          {activeFrame && (
+            <button
+              className="toolbar-btn"
+              style={{ marginTop: 6 }}
+              onClick={() => {
+                setShowForkForm(true);
+                setForkError(null);
+                const base = activeFrame.id;
+                setForkId(`${base}-fork`);
+                setForkName(`${activeFrame.name} (fork)`);
+              }}
+            >
+              Fork frame…
+            </button>
+          )}
+          {showForkForm && activeFrame && (
+            <div className="add-domain-form" style={{ position: "static", marginTop: 8, width: "auto" }}>
+              <label className="form-label">Forking: {activeFrame.name}</label>
+              <label className="form-label">New frame ID</label>
+              <input
+                type="text"
+                placeholder="e.g. counting-numbers-bill"
+                value={forkId}
+                onChange={(e) => setForkId(e.target.value)}
+                className="domain-input"
+              />
+              <label className="form-label">New frame name</label>
+              <input
+                type="text"
+                placeholder="Display name"
+                value={forkName}
+                onChange={(e) => setForkName(e.target.value)}
+                className="domain-input"
+              />
+              <label className="form-label">Description (optional)</label>
+              <textarea
+                placeholder="Why this fork exists"
+                value={forkDesc}
+                onChange={(e) => setForkDesc(e.target.value)}
+                className="domain-input"
+                rows={2}
+              />
+              <div className="form-actions">
+                <button
+                  className="toolbar-btn create"
+                  disabled={!forkId.trim() || !forkName.trim()}
+                  onClick={async () => {
+                    setForkError(null);
+                    try {
+                      const newFrame = await api.forkFrame(activeFrame.id, {
+                        id: forkId.trim(),
+                        name: forkName.trim(),
+                        description: forkDesc.trim() || undefined,
+                      });
+                      resetForkForm();
+                      // Update frames list and switch active frame to the fork.
+                      // Bypass refreshData() — its stale-closure setActiveFrame would
+                      // race with our switch.
+                      const fresh = await api.listFrames();
+                      setFrames(fresh);
+                      setActiveFrame(newFrame);
+                      handleResetQuotient();
+                      setSelectedSchemaId(null);
+                      api.validateFrame(newFrame.id).then(setValidation);
+                    } catch (e) {
+                      const msg = e instanceof Error ? e.message : String(e);
+                      setForkError(msg.replace(/^\d+:\s*/, ""));
+                    }
+                  }}
+                >
+                  Create fork
+                </button>
+                <button className="toolbar-btn cancel" onClick={resetForkForm}>Cancel</button>
+              </div>
+              {forkError && <div className="domain-error">{forkError}</div>}
+            </div>
+          )}
         </div>
 
         {/* Color coding */}
@@ -690,9 +782,9 @@ export function App() {
                     const schemaId = e.target.value;
                     setNewKCSchemaId(schemaId);
                     setNewKCId("");
-                    if (schemaId) {
+                    if (schemaId && activeFrame) {
                       try {
-                        const { next_id } = await api.getNextKCId(schemaId);
+                        const { next_id } = await api.getNextKCId(activeFrame.id, schemaId);
                         setNewKCId(next_id);
                       } catch {
                         setNewKCId("");
@@ -726,8 +818,8 @@ export function App() {
                       try {
                         await api.createKC({ id: newKCId, short_description: newKCDesc.trim() });
                         // Also add to the selected schema
-                        if (newKCSchemaId) {
-                          await api.addKCsToSchema(newKCSchemaId, [newKCId]);
+                        if (newKCSchemaId && activeFrame) {
+                          await api.addKCsToSchema(activeFrame.id, newKCSchemaId, [newKCId]);
                         }
                         setShowAddKCForm(false);
                         setNewKCSchemaId("");
@@ -834,7 +926,7 @@ export function App() {
                           parent_schema_id: newSchemaParentId || null,
                         });
                         if (newSchemaKCs.size > 0) {
-                          await api.addKCsToSchema(newSchemaId.trim(), Array.from(newSchemaKCs));
+                          await api.addKCsToSchema(activeFrame.id, newSchemaId.trim(), Array.from(newSchemaKCs));
                         }
                         resetAddSchemaForm();
                         await refreshData();

@@ -26,6 +26,7 @@ from .models import (
     BulkImportData,
     EdgeCreate,
     ErrorResponse,
+    ForkFrameRequest,
     FrameCreate,
     FrameUpdate,
     KCCreate,
@@ -377,13 +378,14 @@ def list_kc_types():
     return [r[0] for r in rows]
 
 
-@app.get("/api/schemas/{schema_id}/next-kc-id")
-def next_kc_id(schema_id: str):
+@app.get("/api/frames/{frame_id}/schemas/{schema_id}/next-kc-id")
+def next_kc_id(frame_id: str, schema_id: str):
     """Generate the next KC ID for a given schema based on existing conventions."""
     dal = get_dal()
-    # Get existing KCs in this schema
+    # Get existing KCs in this schema (within this frame)
     rows = dal.conn.execute(
-        "SELECT kc_id FROM schema_kcs WHERE schema_id = ?", (schema_id,)
+        "SELECT kc_id FROM schema_kcs WHERE frame_id = ? AND schema_id = ?",
+        (frame_id, schema_id),
     ).fetchall()
     existing_ids = [r[0] for r in rows]
 
@@ -425,12 +427,12 @@ def next_kc_id(schema_id: str):
 # ── KC Schemas ──
 
 
-@app.get("/api/kcs/{kc_id}/schemas")
-def kc_schemas(kc_id: str):
+@app.get("/api/frames/{frame_id}/kcs/{kc_id}/schemas")
+def kc_schemas(frame_id: str, kc_id: str):
     kc = get_dal().get_kc(kc_id)
     if not kc:
         raise HTTPException(404, f"KC {kc_id} not found")
-    return get_dal().kc_schemas(kc_id)
+    return get_dal().kc_schemas(frame_id, kc_id)
 
 
 # ── Frames ──
@@ -490,52 +492,71 @@ def create_schema(frame_id: str, schema: SchemaCreate):
         raise HTTPException(409, str(e))
 
 
-@app.patch("/api/schemas/{schema_id}")
-def update_schema(schema_id: str, update: SchemaUpdate):
-    result = get_dal().update_schema(schema_id, update)
+@app.patch("/api/frames/{frame_id}/schemas/{schema_id}")
+def update_schema(frame_id: str, schema_id: str, update: SchemaUpdate):
+    result = get_dal().update_schema(frame_id, schema_id, update)
     if not result:
-        raise HTTPException(404, f"Schema {schema_id} not found")
+        raise HTTPException(404, f"Schema {schema_id} not found in frame {frame_id}")
     return result
 
 
-@app.delete("/api/schemas/{schema_id}", status_code=204)
-def delete_schema(schema_id: str):
-    if not get_dal().delete_schema(schema_id):
-        raise HTTPException(404, f"Schema {schema_id} not found")
+@app.delete("/api/frames/{frame_id}/schemas/{schema_id}", status_code=204)
+def delete_schema(frame_id: str, schema_id: str):
+    if not get_dal().delete_schema(frame_id, schema_id):
+        raise HTTPException(404, f"Schema {schema_id} not found in frame {frame_id}")
 
 
-@app.post("/api/schemas/{schema_id}/kcs")
-def add_kcs_to_schema(schema_id: str, body: SchemaKCsAdd):
-    result = get_dal().add_kcs_to_schema(schema_id, body.kc_ids)
+@app.post("/api/frames/{frame_id}/schemas/{schema_id}/kcs")
+def add_kcs_to_schema(frame_id: str, schema_id: str, body: SchemaKCsAdd):
+    result = get_dal().add_kcs_to_schema(frame_id, schema_id, body.kc_ids)
     if not result:
-        raise HTTPException(404, f"Schema {schema_id} not found")
+        raise HTTPException(404, f"Schema {schema_id} not found in frame {frame_id}")
     return result
 
 
-@app.delete("/api/schemas/{schema_id}/kcs/{kc_id}", status_code=204)
-def remove_kc_from_schema(schema_id: str, kc_id: str):
-    if not get_dal().remove_kc_from_schema(schema_id, kc_id):
+@app.delete("/api/frames/{frame_id}/schemas/{schema_id}/kcs/{kc_id}", status_code=204)
+def remove_kc_from_schema(frame_id: str, schema_id: str, kc_id: str):
+    if not get_dal().remove_kc_from_schema(frame_id, schema_id, kc_id):
         raise HTTPException(404, "Schema or KC membership not found")
 
 
-@app.get("/api/schemas/{schema_id}/atoms")
-def schema_atoms(schema_id: str):
+@app.get("/api/frames/{frame_id}/schemas/{schema_id}/atoms")
+def schema_atoms(frame_id: str, schema_id: str):
     dal = get_dal()
-    schema = dal.get_schema(schema_id)
+    schema = dal.get_schema(frame_id, schema_id)
     if not schema:
-        raise HTTPException(404, f"Schema {schema_id} not found")
-    atoms = compute_atom_set(schema_id, dal.conn)
+        raise HTTPException(404, f"Schema {schema_id} not found in frame {frame_id}")
+    atoms = compute_atom_set(frame_id, schema_id, dal.conn)
     return sorted(atoms)
 
 
-@app.get("/api/schemas/{schema_id}/check-convexity")
-def schema_check_convexity(schema_id: str):
+@app.get("/api/frames/{frame_id}/schemas/{schema_id}/check-convexity")
+def schema_check_convexity(frame_id: str, schema_id: str):
     dal = get_dal()
-    schema = dal.get_schema(schema_id)
+    schema = dal.get_schema(frame_id, schema_id)
     if not schema:
-        raise HTTPException(404, f"Schema {schema_id} not found")
-    atoms = compute_atom_set(schema_id, dal.conn)
+        raise HTTPException(404, f"Schema {schema_id} not found in frame {frame_id}")
+    atoms = compute_atom_set(frame_id, schema_id, dal.conn)
     return check_convexity(atoms, get_graphs().knowledge_graph)
+
+
+@app.post("/api/frames/{source_frame_id}/fork", status_code=201)
+def fork_frame(source_frame_id: str, fork: ForkFrameRequest):
+    """Create a copy of source frame as a new frame, cloning schemas."""
+    dal = get_dal()
+    if not dal.get_frame(source_frame_id):
+        raise HTTPException(404, f"Source frame {source_frame_id} not found")
+    new_frame = FrameCreate(
+        id=fork.id,
+        name=fork.name,
+        description=fork.description,
+        frame_type=fork.frame_type,
+        is_reference=False,
+    )
+    try:
+        return dal.fork_frame(source_frame_id, new_frame)
+    except Exception as e:
+        raise HTTPException(409, str(e))
 
 
 # ── Frame Validation ──

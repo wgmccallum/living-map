@@ -78,8 +78,10 @@ export function SidePanel({ selectedNodeId, kcs, edges, frame, onSelectNode, onD
       setDescendants([]);
       setSchemas([]);
       setAnnotations([]);
-      api.getSchemaAtoms(schemaId).then(setAtomSet).catch(() => setAtomSet([]));
-      api.checkConvexity(schemaId).then(setConvexity).catch(() => setConvexity(null));
+      if (frame) {
+        api.getSchemaAtoms(frame.id, schemaId).then(setAtomSet).catch(() => setAtomSet([]));
+        api.checkConvexity(frame.id, schemaId).then(setConvexity).catch(() => setConvexity(null));
+      }
       return;
     }
 
@@ -97,9 +99,11 @@ export function SidePanel({ selectedNodeId, kcs, edges, frame, onSelectNode, onD
     setConvexity(null);
     api.getKCAncestors(selectedNodeId).then(setAncestors).catch(() => setAncestors([]));
     api.getKCDescendants(selectedNodeId).then(setDescendants).catch(() => setDescendants([]));
-    api.getKCSchemas(selectedNodeId).then(setSchemas).catch(() => setSchemas([]));
+    if (frame) {
+      api.getKCSchemas(frame.id, selectedNodeId).then(setSchemas).catch(() => setSchemas([]));
+    }
     api.getAnnotations("kc", selectedNodeId).then(setAnnotations).catch(() => setAnnotations([]));
-  }, [selectedNodeId, isSchemaSelection, schemaId]);
+  }, [selectedNodeId, isSchemaSelection, schemaId, frame]);
 
   const saveField = useCallback(async (field: string, value: string) => {
     if (!selectedNodeId) return;
@@ -108,12 +112,12 @@ export function SidePanel({ selectedNodeId, kcs, edges, frame, onSelectNode, onD
     try {
       if (field === "short_description" || field === "long_description") {
         await api.updateKC(selectedNodeId, { [field]: value });
-      } else if (field === "schema_name" && schemaId) {
-        await api.updateSchema(schemaId, { name: value });
-      } else if (field === "schema_description" && schemaId) {
-        await api.updateSchema(schemaId, { description: value });
-      } else if (field === "schema_parent" && schemaId) {
-        await api.updateSchema(schemaId, { parent_schema_id: value || null });
+      } else if (field === "schema_name" && schemaId && frame) {
+        await api.updateSchema(frame.id, schemaId, { name: value });
+      } else if (field === "schema_description" && schemaId && frame) {
+        await api.updateSchema(frame.id, schemaId, { description: value });
+      } else if (field === "schema_parent" && schemaId && frame) {
+        await api.updateSchema(frame.id, schemaId, { parent_schema_id: value || null });
       } else if (field === "domain_name" && domainId) {
         await api.updateMathDomain(domainId, { name: value });
       } else if (field === "domain_description" && domainId) {
@@ -185,27 +189,29 @@ export function SidePanel({ selectedNodeId, kcs, edges, frame, onSelectNode, onD
 
   const handleRemoveKCFromSchema = useCallback(async (sid: string, kcId: string) => {
     setError(null);
+    if (!frame) return;
     try {
-      await api.removeKCFromSchema(sid, kcId);
+      await api.removeKCFromSchema(frame.id, sid, kcId);
       await onDataChanged();
       // Re-fetch schema data
       if (schemaId) {
-        api.getSchemaAtoms(schemaId).then(setAtomSet);
-        api.checkConvexity(schemaId).then(setConvexity);
+        api.getSchemaAtoms(frame.id, schemaId).then(setAtomSet);
+        api.checkConvexity(frame.id, schemaId).then(setConvexity);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
-  }, [schemaId, onDataChanged]);
+  }, [frame, schemaId, onDataChanged]);
 
   const handleAddKCToSchema = useCallback(async (sid: string, kcId: string) => {
     setError(null);
+    if (!frame) return;
     try {
-      await api.addKCsToSchema(sid, [kcId]);
+      await api.addKCsToSchema(frame.id, sid, [kcId]);
       await onDataChanged();
       if (schemaId) {
-        api.getSchemaAtoms(schemaId).then(setAtomSet);
-        api.checkConvexity(schemaId).then(setConvexity);
+        api.getSchemaAtoms(frame.id, schemaId).then(setAtomSet);
+        api.checkConvexity(frame.id, schemaId).then(setConvexity);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -514,13 +520,14 @@ export function SidePanel({ selectedNodeId, kcs, edges, frame, onSelectNode, onD
                         className="delete-confirm-btn"
                         onClick={async () => {
                           setError(null);
+                          if (!frame) return;
                           try {
                             // Delete descendants bottom-up (leaves first)
                             const reversed = [...allDescendants].reverse();
                             for (const s of reversed) {
-                              await api.deleteSchema(s.id);
+                              await api.deleteSchema(frame.id, s.id);
                             }
-                            await api.deleteSchema(schemaId);
+                            await api.deleteSchema(frame.id, schemaId);
                             onSelectNode(null);
                             await onDataChanged();
                           } catch (err) {
@@ -942,17 +949,17 @@ export function SidePanel({ selectedNodeId, kcs, edges, frame, onSelectNode, onD
                     autoFocus
                     onChange={async (e) => {
                       const targetSchemaId = e.target.value;
-                      if (!targetSchemaId || !selectedNodeId) return;
+                      if (!targetSchemaId || !selectedNodeId || !frame) return;
                       setError(null);
                       try {
                         // Remove from all current schemas
                         for (const s of schemas) {
-                          await api.removeKCFromSchema(s.id, selectedNodeId);
+                          await api.removeKCFromSchema(frame.id, s.id, selectedNodeId);
                         }
                         // Add to new schema
-                        await api.addKCsToSchema(targetSchemaId, [selectedNodeId]);
+                        await api.addKCsToSchema(frame.id, targetSchemaId, [selectedNodeId]);
                         await onDataChanged();
-                        api.getKCSchemas(selectedNodeId).then(setSchemas);
+                        api.getKCSchemas(frame.id, selectedNodeId).then(setSchemas);
                         setEditingField(null);
                       } catch (err) {
                         setError(err instanceof Error ? err.message : String(err));
