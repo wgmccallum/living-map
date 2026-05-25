@@ -23,12 +23,6 @@ staging.db
 staging.db-shm
 staging.db-wal
 
-# Mac Mini deployment (not needed on Railway)
-com.livingmap.server.plist
-start-server.sh
-get-url.sh
-publish.sh
-
 # Logs
 logs/
 

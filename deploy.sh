@@ -1,41 +1,28 @@
 #!/bin/bash
-# Deploy script for Living Map
-# Builds the frontend and starts the server on a single port.
+# Local build script for Living Map
+# Builds the frontend and starts the server on a single port for local testing.
+# Production deploys go through Railway (git push) — this script is for localhost only.
 #
 # Usage:
 #   ./deploy.sh                       # Build + run on port 8000 (edits your DB)
 #   ./deploy.sh --sandbox             # Run against a temporary copy (your DB is safe)
-#   ./deploy.sh --sandbox --tunnel    # Same + open a public URL via cloudflared
 #   ./deploy.sh --port 3000           # Custom port
 #   ./deploy.sh --skip-build          # Run without rebuilding frontend
-#   ./deploy.sh --rebuild             # Rebuild frontend + restart sandbox + tunnel
 
 set -e
 
 PORT=8000
 SKIP_BUILD=false
 SANDBOX=false
-TUNNEL=false
-REBUILD=false
 
 while [[ $# -gt 0 ]]; do
   case $1 in
     --port) PORT="$2"; shift 2 ;;
     --skip-build) SKIP_BUILD=true; shift ;;
     --sandbox) SANDBOX=true; shift ;;
-    --tunnel) TUNNEL=true; shift ;;
-    --rebuild) REBUILD=true; SANDBOX=true; TUNNEL=true; shift ;;
     *) echo "Unknown option: $1"; exit 1 ;;
   esac
 done
-
-# If rebuilding, kill any existing server and tunnel on the port
-if [ "$REBUILD" = true ]; then
-  echo "Rebuilding: stopping existing server and tunnel..."
-  lsof -ti:$PORT 2>/dev/null | xargs kill 2>/dev/null || true
-  pkill -f cloudflared 2>/dev/null || true
-  sleep 1
-fi
 
 cd "$(dirname "$0")"
 
@@ -65,27 +52,6 @@ if [ "$SANDBOX" = true ]; then
   cp living_map.db "$DB_PATH"
   echo "Sandbox mode: working on copy at $DB_PATH"
   echo "Your living_map.db is untouched."
-fi
-
-# Start tunnel in background if requested
-if [ "$TUNNEL" = true ]; then
-  if ! command -v cloudflared &> /dev/null; then
-    echo "Error: cloudflared not installed. Run: brew install cloudflared"
-    exit 1
-  fi
-  echo "Starting tunnel..."
-  cloudflared tunnel --url "http://localhost:$PORT" > /tmp/cloudflared.log 2>&1 &
-  TUNNEL_PID=$!
-  sleep 8
-  TUNNEL_URL=$(grep -o 'https://[^ ]*trycloudflare.com' /tmp/cloudflared.log | head -1)
-  echo ""
-  echo "═══════════════════════════════════════════════════════"
-  echo "  Public URL: $TUNNEL_URL"
-  echo "  Share this with your collaborators!"
-  echo "═══════════════════════════════════════════════════════"
-  echo ""
-  # Clean up tunnel on exit
-  trap "kill $TUNNEL_PID 2>/dev/null; echo 'Tunnel stopped.'" EXIT
 fi
 
 echo "Starting Living Map on http://0.0.0.0:$PORT"

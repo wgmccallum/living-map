@@ -37,19 +37,21 @@ Collapse schemas into single nodes. Sequential quotienting supported — collaps
 ### Development (two servers)
 ```bash
 # Backend on :8000
-cd living-map && python3 -m living_map.app
+cd living-map && python3 -m living_map
 
 # Frontend on :5173
 cd frontend && npm run dev
 ```
 
-### Production / Sharing
+### Local build (production-style on one port)
 ```bash
-./deploy.sh                       # Build + run on port 8000
-./deploy.sh --sandbox --tunnel    # Safe copy + public URL via cloudflared
-./deploy.sh --rebuild             # Kill existing, rebuild, fresh sandbox + tunnel
+./deploy.sh                       # Build frontend + run backend on :8000
+./deploy.sh --sandbox             # Same, but against a temporary DB copy
 ./restore.sh                      # Reset DB to seed snapshot
 ```
+
+### Production
+Deploys go through Railway via `git push`. See [Dockerfile](Dockerfile) and [railway.toml](railway.toml). No local action required.
 
 ## Current State (as of 2026-03-15)
 
@@ -77,32 +79,20 @@ cd frontend && npm run dev
 - KC ID auto-generation: pick schema from dropdown, system generates next sequential ID
 - Math domain data rebuilt for COP KCs
 
-## Mac Mini Deployment (completed 2026-03-15)
+## Deployment (Railway)
 
-### Setup
-- Project lives at `~/Living Map/living-map` on Mac Mini (macOS, Intel)
-- Python 3.11 via Homebrew, Node.js via Homebrew
-- Venv at `.venv` — dependencies: fastapi, uvicorn, aiosqlite, networkx, openpyxl
+Deploys are triggered by pushing to the GitHub branch Railway is watching. Railway builds the Docker image from [Dockerfile](Dockerfile) per [railway.toml](railway.toml) and serves on its assigned URL.
 
-### Database Strategy
-- **`living_map.db`** — working copy (source of truth), edited during dev sessions
-- **`living_map.live.db`** — what collaborators see via the tunnel (server reads this)
-- **`living_map.seed.db`** — original snapshot for recovery
-- Run `./publish.sh` on Mac Mini to copy working DB → live DB
+### Database files
+- **`living_map.db`** — local working copy (source of truth during dev). Gitignored.
+- **`living_map.live.db`** — committed to git; deployed as the production seed/snapshot.
+- **`living_map.seed.db`** — original snapshot for `./restore.sh`. Gitignored.
 
-### Server & Tunnel
-- macOS Launch Agent: `~/Library/LaunchAgents/com.livingmap.server.plist`
-- Runs `start-server.sh` which starts uvicorn (against `living_map.live.db`) + cloudflared quick tunnel
-- Free trycloudflare.com URL — changes on reboot
-- `./get-url.sh` — prints current tunnel URL
-- `launchctl kickstart -k gui/$(id -u)/com.livingmap.server` — restart service
-- cloudflared is at `/usr/local/bin/cloudflared`
-- "Show only active frame" defaults to checked (changed in App.tsx)
-
-### Upgrading to permanent URL (future)
-- Register a domain, add to Cloudflare
-- Create a named tunnel with `cloudflared tunnel create living-map`
-- Route DNS to tunnel — gives a fixed URL that survives restarts
+### Operating Railway
+- Push to GitHub → Railway auto-deploys
+- `railway logs` — tail production logs (requires `brew install railway` + `railway link`)
+- `railway run <cmd>` — run a one-off command against the prod env
+- All Railway project config (env vars, watched branch, volumes) lives in the Railway dashboard, not in this repo
 
 ## Coding Conventions
 
@@ -208,12 +198,11 @@ Use this template when starting work on a new feature. Write the story into `## 
 - `frontend/src/SidePanel.tsx` — Detail/edit panel for selected nodes
 - `frontend/src/api.ts` — TypeScript API client
 - `frontend/src/index.css` — All styles
-- `deploy.sh` — Build + deploy script
+- `deploy.sh` — Local build script (frontend + backend on one port for localhost testing)
 - `restore.sh` — Reset DB to seed snapshot
-- `start-server.sh` — Launch Agent startup script (server + tunnel)
-- `get-url.sh` — Print current tunnel URL
-- `publish.sh` — Copy working DB to live DB
-- `com.livingmap.server.plist` — macOS Launch Agent config
+- `Dockerfile` — Railway build image
+- `railway.toml` — Railway deploy config
 
 ## API Note
 Backend routes still use "math-concepts" (e.g., `/api/math-concepts`, `/api/math-concept-edges`). The UI labels say "Math Domains." Don't rename the routes — just keep the UI terminology consistent.
+Running
