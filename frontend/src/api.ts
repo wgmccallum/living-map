@@ -226,6 +226,7 @@ export const api = {
     sourceFrameId: string,
     data: { id: string; name: string; description?: string },
   ) => post<Frame>(`/frames/${encodeURIComponent(sourceFrameId)}/fork`, data),
+  deleteFrame: (frameId: string) => del(`/frames/${encodeURIComponent(frameId)}`),
 
   // Math Domains CRUD
   listMathDomains: () => get<MathDomain[]>("/math-concepts"),

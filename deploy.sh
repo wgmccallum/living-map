@@ -26,6 +26,15 @@ done
 
 cd "$(dirname "$0")"
 
+# Prefer the venv's Python if it exists, so the script works whether or not
+# the user activated the venv first.
+if [ -x .venv/bin/python3 ]; then
+  PYTHON=".venv/bin/python3"
+else
+  PYTHON="python3"
+  echo "Warning: .venv not found, falling back to system python3"
+fi
+
 # Build frontend if needed
 if [ "$SKIP_BUILD" = false ]; then
   echo "Building frontend..."
@@ -58,7 +67,7 @@ echo "Starting Living Map on http://0.0.0.0:$PORT"
 echo "Press Ctrl+C to stop"
 echo ""
 
-python3 -c "
+"$PYTHON" -c "
 import uvicorn
 from living_map.app import app
 app.state.db_path = '$DB_PATH'

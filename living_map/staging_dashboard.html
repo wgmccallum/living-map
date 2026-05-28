@@ -858,8 +858,15 @@ async function loadStagedKCs() {
       </div>`;
     }
 
-    const showProgressBtns = !aiResultsVisible;
-    let html = activeKCs.map(kc => renderKCCard(kc, showProgressBtns)).join('');
+    // Hide per-card progress buttons when the AI results panel is visible —
+    // but only for KCs that the AI batch actually reviewed. KCs that weren't
+    // in the AI batch (e.g. merge results, or KCs added after the batch ran)
+    // still need their list-level Approve/Mark Formulated buttons.
+    const aiBatch = window._grainAnalysisMap || {};
+    let html = activeKCs.map(kc => {
+      const showProgressBtns = !aiResultsVisible || !aiBatch[kc.id];
+      return renderKCCard(kc, showProgressBtns);
+    }).join('');
 
     if (staleKCs.length > 0) {
       html += `
@@ -950,6 +957,27 @@ async function batchExecuteMerges() {
   markBatchBtnDone('batch-execute-merges', `${completed} merges executed`);
   toast(`${completed} of ${merges.length} merges executed`);
   window._pendingMerges = [];
+  loadStagedKCs();
+  refreshSession();
+}
+
+async function batchExecuteDeletes(kcIds) {
+  if (!kcIds || kcIds.length === 0) { toast('No pending deletes', 'error'); return; }
+  if (!confirm(`Delete ${kcIds.length} redundant KCs?\n\n${kcIds.join(', ')}\n\nThis cannot be undone.`)) return;
+  let completed = 0;
+  for (const id of kcIds) {
+    try {
+      await api('DELETE', `/api/staging/${currentSessionId}/kcs/${id}`);
+      markAICardResolved(id, 'Deleted', 'var(--muted)');
+      removeFromKeepsList(id);
+      removeFromPendingSplits(id);
+      completed++;
+    } catch (e) {
+      markAICardResolved(id, 'Skipped (already deleted)', '#999');
+    }
+  }
+  markBatchBtnDone('batch-execute-deletes', `${completed} deleted`);
+  toast(`${completed} of ${kcIds.length} deletes executed`);
   loadStagedKCs();
   refreshSession();
 }
@@ -1239,6 +1267,21 @@ async function deleteKC(kcId) {
   } catch (e) { toast(e.message, 'error'); }
 }
 
+// Delete from the AI grain-review results panel: same as deleteKC, but also
+// updates the AI panel card and batch-button state in place.
+async function deleteKCFromReview(kcId) {
+  if (!confirm(`Delete ${kcId}? This cannot be undone.`)) return;
+  try {
+    await api('DELETE', `/api/staging/${currentSessionId}/kcs/${kcId}`);
+    toast(`${kcId} deleted`);
+    markAICardResolved(kcId, 'Deleted', 'var(--muted)');
+    removeFromKeepsList(kcId);
+    removeFromPendingSplits(kcId);
+    loadStagedKCs();
+    refreshSession();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
 // ═══════════════════════════════════════════════════════
 // AI Features
 // ═══════════════════════════════════════════════════════
@@ -1371,10 +1414,10 @@ async function aiGrainReview() {
       const kc = kcLookup[r.kc_id];
       const sourceText = kc?.source_text || kc?.short_description || '';
       return `
-      <div class="kc-detail" style="border-left:3px solid ${r.recommendation === 'keep' ? 'var(--success)' : r.recommendation === 'split' ? 'var(--warning)' : r.recommendation === 'merge' ? 'var(--primary)' : 'var(--muted)'}">
+      <div class="kc-detail" style="border-left:3px solid ${r.recommendation === 'keep' ? 'var(--success)' : r.recommendation === 'split' ? 'var(--warning)' : r.recommendation === 'merge' ? 'var(--primary)' : r.recommendation === 'delete' ? 'var(--danger)' : 'var(--muted)'}">
         <div class="kc-header">
           <span class="kc-id">${r.kc_id}</span>
-          <span class="badge badge-${r.recommendation === 'keep' ? 'confirmed' : r.recommendation === 'split' ? 'stale' : r.recommendation === 'merge' ? 'proposed' : 'grain_approved'}">${r.recommendation}</span>
+          <span class="badge badge-${r.recommendation === 'keep' ? 'confirmed' : r.recommendation === 'split' ? 'stale' : r.recommendation === 'merge' ? 'proposed' : r.recommendation === 'delete' ? 'rejected' : 'grain_approved'}">${r.recommendation}</span>
         </div>
         ${sourceText ? `<div class="meta" style="margin-bottom:6px;padding:6px 8px;background:#f8f8f8;border-radius:4px;font-size:13px;white-space:pre-wrap;">${escapeHtml(sourceText)}</div>` : ''}
         <div class="kc-desc">${escapeHtml(r.analysis || '')}</div>
@@ -1390,10 +1433,14 @@ async function aiGrainReview() {
            r.recommendation === 'merge' && r.merge_target ?
             `<button class="btn btn-sm btn-success" onclick="showMergeDialog('${r.kc_id}', '${r.merge_target.replace(/'/g, "\\'")}')" style="background:var(--primary);border-color:var(--primary)">Merge with ${escapeHtml(r.merge_target)}</button>
              <button class="btn btn-sm btn-outline" onclick="updateKCStatus('${r.kc_id}','grain_approved')">Keep as-is</button>` :
+           r.recommendation === 'delete' ?
+            `<button class="btn btn-sm btn-danger" onclick="deleteKCFromReview('${r.kc_id}')">Apply Delete</button>
+             <button class="btn btn-sm btn-outline" onclick="updateKCStatus('${r.kc_id}','grain_approved')">Keep as-is</button>` :
             `<button class="btn btn-sm btn-success" onclick="updateKCStatus('${r.kc_id}','grain_approved')">Approve Grain Size</button>`
           }
           <button class="btn btn-sm btn-warning" onclick="flagKC('${r.kc_id}')">Flag</button>
           <button class="btn btn-sm btn-outline" onclick="openConversation('${r.kc_id}', (window._grainAnalysisMap||{})['${r.kc_id}'])">Discuss</button>
+          ${r.recommendation !== 'delete' ? `<button class="btn btn-sm btn-danger" onclick="deleteKCFromReview('${r.kc_id}')" title="Delete this staged KC entirely">Delete</button>` : ''}
         </div>
       </div>
     `}).join('');
@@ -1409,6 +1456,8 @@ async function aiGrainReview() {
     // Store merges globally so the batch function can access them
     window._pendingMerges = mergeItems.map(r => ({ kc_id: r.kc_id, merge_target: r.merge_target }));
 
+    const deleteIds = reviews.filter(r => r.recommendation === 'delete').map(r => r.kc_id);
+
     const allIds = reviews.map(r => r.kc_id);
 
     let batchButtons = [];
@@ -1420,6 +1469,9 @@ async function aiGrainReview() {
     }
     if (mergeItems.length > 0) {
       batchButtons.push(`<button id="batch-execute-merges" class="btn btn-sm" onclick="batchExecuteMerges()" style="background:var(--primary);border-color:var(--primary);color:white;">Accept All Merges (${mergeItems.length})</button>`);
+    }
+    if (deleteIds.length > 0) {
+      batchButtons.push(`<button id="batch-execute-deletes" class="btn btn-sm btn-danger" data-delete-ids='${JSON.stringify(deleteIds)}' onclick="batchExecuteDeletes(${JSON.stringify(deleteIds).replace(/"/g, '&quot;')})">Delete All Redundant (${deleteIds.length})</button>`);
     }
     if (allIds.length > keepIds.length) {
       batchButtons.push(`<button id="batch-approve-all-proposed" class="btn btn-sm btn-outline" onclick="batchApproveAllProposed()">Approve All Remaining Keeps and Splits</button>`);
@@ -3067,7 +3119,10 @@ loadSessions();
 <div id="conv-panel" class="conv-panel">
   <div class="conv-panel-header">
     <h3 id="conv-kc-title">Discuss KC</h3>
-    <button class="btn btn-sm btn-outline" onclick="closeConversation()">&times; Close</button>
+    <div style="display:flex;gap:6px;align-items:center;">
+      <button class="btn btn-sm btn-danger" onclick="deleteConversationKC()" title="Delete this staged KC entirely">Delete KC</button>
+      <button class="btn btn-sm btn-outline" onclick="closeConversation()">&times; Close</button>
+    </div>
   </div>
   <div class="conv-panel-context" id="conv-context"></div>
   <div class="conv-messages" id="conv-messages"></div>
@@ -3178,6 +3233,11 @@ function appendConvMessage(role, content, timestamp, action) {
       actionDiv.innerHTML =
         '<span style="font-size:12px;color:#555;">Approve grain size:</span>' +
         '<button class="btn btn-sm btn-success" onclick="applyConversationApprove()">Apply Approval</button>' +
+        '<button class="btn btn-sm btn-outline" onclick="this.parentElement.remove()">Dismiss</button>';
+    } else if (action.type === 'delete') {
+      actionDiv.innerHTML =
+        '<span style="font-size:12px;color:#555;">Delete this KC:</span>' +
+        '<button class="btn btn-sm btn-danger" onclick="deleteConversationKC()">Apply Delete</button>' +
         '<button class="btn btn-sm btn-outline" onclick="this.parentElement.remove()">Dismiss</button>';
     }
     div.appendChild(actionDiv);
@@ -3291,6 +3351,22 @@ async function applyConversationApprove() {
     await api('PATCH', '/api/staging/' + currentSessionId + '/kcs/' + kcId, { stage_status: 'grain_approved' });
     toast(kcId + ' → grain_approved');
     markAICardResolved(kcId, 'Approved (via discussion)', 'var(--success)');
+    removeFromPendingSplits(kcId);
+    closeConversation();
+    loadStagedKCs();
+    refreshSession();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function deleteConversationKC() {
+  var kcId = currentConversationKcId;
+  if (!kcId) { toast('No KC selected', 'error'); return; }
+  if (!confirm('Delete staged KC "' + kcId + '" entirely?\n\nThis removes it from the staging session. Cannot be undone.')) return;
+  try {
+    await api('DELETE', '/api/staging/' + currentSessionId + '/kcs/' + kcId);
+    toast(kcId + ' deleted');
+    markAICardResolved(kcId, 'Deleted (via discussion)', 'var(--muted)');
+    removeFromKeepsList(kcId);
     removeFromPendingSplits(kcId);
     closeConversation();
     loadStagedKCs();

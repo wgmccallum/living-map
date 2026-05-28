@@ -332,6 +332,45 @@ export function App() {
               Fork frame…
             </button>
           )}
+          {activeFrame && (
+            <button
+              className="toolbar-btn"
+              style={{ marginTop: 6, marginLeft: 6 }}
+              disabled={activeFrame.is_reference || frames.length <= 1}
+              title={
+                activeFrame.is_reference
+                  ? "Reference frames cannot be deleted"
+                  : frames.length <= 1
+                    ? "Cannot delete the only remaining frame"
+                    : "Delete this frame and all its schemas and edges"
+              }
+              onClick={async () => {
+                const confirmed = window.confirm(
+                  `Delete frame "${activeFrame.name}"?\n\n` +
+                    `This will also delete all schemas and prerequisite edges that belong to this frame. ` +
+                    `KCs themselves are shared across frames and will NOT be deleted.\n\n` +
+                    `This action cannot be undone.`,
+                );
+                if (!confirmed) return;
+                try {
+                  const deletedId = activeFrame.id;
+                  await api.deleteFrame(deletedId);
+                  const fresh = await api.listFrames();
+                  setFrames(fresh);
+                  const next = fresh.find((f) => f.is_reference) || fresh[0] || null;
+                  setActiveFrame(next);
+                  handleResetQuotient();
+                  setSelectedSchemaId(null);
+                  if (next) api.validateFrame(next.id).then(setValidation);
+                } catch (e) {
+                  const msg = e instanceof Error ? e.message : String(e);
+                  window.alert(`Delete failed: ${msg.replace(/^\d+:\s*/, "")}`);
+                }
+              }}
+            >
+              Delete frame…
+            </button>
+          )}
           {showForkForm && activeFrame && (
             <div className="add-domain-form" style={{ position: "static", marginTop: 8, width: "auto" }}>
               <label className="form-label">Forking: {activeFrame.name}</label>

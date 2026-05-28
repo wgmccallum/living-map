@@ -159,7 +159,7 @@ def grain_review(kcs: list[dict], existing_kcs: list[dict] | None = None) -> lis
         List of dicts, one per KC, with:
         - kc_id: the staged KC ID
         - analysis: grain-size assessment
-        - recommendation: 'keep', 'split', or 'merge'
+        - recommendation: 'keep', 'split', 'merge', or 'delete'
         - split_suggestions: list of suggested sub-KCs if splitting
         - merge_target: ID to merge with if merging
         - questions: list of specific questions for the reviewer
@@ -187,6 +187,15 @@ A well-sized KC:
 - Can be assessed with a single task or prompt
 - Is neither too broad (covering multiple distinct ideas) nor too narrow (a trivial sub-step)
 
+Use these recommendations:
+- "keep" — the KC is well-formed and well-sized as-is
+- "split" — the KC covers multiple distinct ideas that should each be their own KC
+- "merge" — the KC is redundant with another KC in the batch (provide its ID in merge_target); the two should be combined
+- "delete" — the KC should be removed entirely with no replacement. Use this when:
+    * The content is not actually a knowledge component (e.g., a section header, table-of-contents item, or other scaffolding that slipped through ingest)
+    * The content is malformed, garbled, or empty
+    * The content duplicates another KC but has no unique value worth preserving via merge
+
 Proposed KCs:
 
 {kc_descriptions}{calibration}
@@ -194,8 +203,8 @@ Proposed KCs:
 Respond with a JSON array. For each KC:
 {{
   "kc_id": "the staged KC ID",
-  "analysis": "Brief explanation of your grain-size assessment",
-  "recommendation": "keep" | "split" | "merge",
+  "analysis": "Brief explanation of your grain-size assessment, including the reason if recommending delete",
+  "recommendation": "keep" | "split" | "merge" | "delete",
   "split_suggestions": ["description of sub-KC 1", "description of sub-KC 2"],
   "merge_target": "ID of KC to merge with, if applicable",
   "questions": ["Specific question for the reviewer about this KC's grain size"]
@@ -319,7 +328,7 @@ your assessment, or explore alternatives (splitting, merging, keeping as-is). \
 Be conversational but precise. Reference specific mathematical content when \
 explaining your reasoning. Keep responses focused and concise.
 
-When you and the reviewer reach agreement on a concrete action (split, merge, or approve), \
+When you and the reviewer reach agreement on a concrete action (split, approve, or delete), \
 include an ACTION block at the end of your response in exactly this format:
 
 For a split:
@@ -330,6 +339,11 @@ For a split:
 
 For approving the grain size as-is:
 [ACTION:approve]
+[/ACTION]
+
+For deleting the KC entirely (e.g. because it is redundant with another KC, malformed, \
+or not actually a knowledge component):
+[ACTION:delete]
 [/ACTION]
 
 Only include the ACTION block when you are confident the reviewer has agreed. \
@@ -382,6 +396,8 @@ def _parse_conversation_action(text: str) -> dict | None:
             return {"type": "split", "children": children}
     elif action_type == "approve":
         return {"type": "approve"}
+    elif action_type == "delete":
+        return {"type": "delete"}
     return None
 
 
