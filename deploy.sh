@@ -45,10 +45,12 @@ if [ "$SKIP_BUILD" = false ]; then
   echo "Frontend built → living_map/static/"
 fi
 
-# Snapshot the database if no snapshot exists yet
+# Snapshot the database if no snapshot exists yet.
+# WAL-safe copy (sqlite3 .backup) so commits still in living_map.db-wal aren't lost.
 if [ ! -f living_map.seed.db ]; then
   echo "Creating database snapshot → living_map.seed.db"
-  cp living_map.db living_map.seed.db
+  rm -f living_map.seed.db-wal living_map.seed.db-shm
+  sqlite3 living_map.db ".backup 'living_map.seed.db'"
 fi
 
 # Determine which DB to use
@@ -58,7 +60,8 @@ if [ "$SANDBOX" = true ]; then
   mkdir -p "$SANDBOX_DIR"
   TIMESTAMP=$(date +%Y%m%d_%H%M%S)
   DB_PATH="${SANDBOX_DIR}/sandbox_${TIMESTAMP}.db"
-  cp living_map.db "$DB_PATH"
+  rm -f "${DB_PATH}-wal" "${DB_PATH}-shm"
+  sqlite3 living_map.db ".backup '$DB_PATH'"
   echo "Sandbox mode: working on copy at $DB_PATH"
   echo "Your living_map.db is untouched."
 fi

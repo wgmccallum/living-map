@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 from datetime import datetime, timezone
 
@@ -191,6 +192,25 @@ class StagingDAL:
             results.append(self.create_staged_kc(session_id, kc))
         return results
 
+    def max_staged_kc_number(self, prefix: str) -> int:
+        """Highest NNN among ALL ``STAGE-{prefix}-NNN`` ids, across every session.
+
+        staged_kcs.id is a global primary key, so ingest numbering must be global
+        per prefix — scoping it to one session restarts at 001 and collides with
+        ids the same prefix already minted in other sessions.
+        """
+        rows = self.conn.execute(
+            "SELECT id FROM staged_kcs WHERE id LIKE ?",
+            (f"STAGE-{prefix}-%",),
+        ).fetchall()
+        mx = 0
+        for r in rows:
+            try:
+                mx = max(mx, int(r["id"].rsplit("-", 1)[1]))
+            except (ValueError, IndexError):
+                pass
+        return mx
+
     def get_staged_kc(self, session_id: str, kc_id: str) -> StagedKCResponse | None:
         row = self.conn.execute(
             "SELECT * FROM staged_kcs WHERE id = ? AND session_id = ?",
@@ -337,6 +357,18 @@ class StagingDAL:
     # ═══════════════════════════════════════════════════════
 
     def create_staged_edge(self, session_id: str, edge: StagedEdgeCreate) -> StagedEdgeResponse:
+        # Idempotent: an edge is uniquely identified by (session, source, target).
+        # If it already exists, return it rather than inserting a duplicate. This
+        # makes prerequisite regeneration safe — re-proposing an existing edge is a
+        # no-op instead of creating a second copy.
+        existing = self.conn.execute(
+            "SELECT id FROM staged_edges "
+            "WHERE session_id = ? AND source_kc_id = ? AND target_kc_id = ?",
+            (session_id, edge.source_kc_id, edge.target_kc_id),
+        ).fetchone()
+        if existing:
+            return self.get_staged_edge(session_id, existing["id"])
+
         now = _now()
         cur = self.conn.execute(
             "INSERT INTO staged_edges "
@@ -353,6 +385,71 @@ class StagingDAL:
         for edge in edges:
             results.append(self.create_staged_edge(session_id, edge))
         return results
+
+    # Priority for resolving duplicates / picking a "winner" per (source, target).
+    # Higher wins. Confirmed edges represent human-approved work and are kept.
+    _STATUS_PRIORITY = {"confirmed": 3, "proposed": 2, "stale": 1, "rejected": 0}
+
+    def dedupe_staged_edges(self, session_id: str) -> dict:
+        """Collapse duplicate (source, target) staged edges within a session.
+
+        Keeps one row per (source, target) — preferring confirmed status, then
+        proposed, breaking ties by lowest id — and deletes the rest. Returns a
+        summary of how many groups were collapsed and rows removed.
+        """
+        rows = self.conn.execute(
+            "SELECT id, source_kc_id, target_kc_id, status FROM staged_edges "
+            "WHERE session_id = ? ORDER BY id",
+            (session_id,),
+        ).fetchall()
+
+        groups: dict[tuple[str, str], list[sqlite3.Row]] = {}
+        for r in rows:
+            groups.setdefault((r["source_kc_id"], r["target_kc_id"]), []).append(r)
+
+        removed_ids: list[int] = []
+        groups_collapsed = 0
+        for members in groups.values():
+            if len(members) < 2:
+                continue
+            groups_collapsed += 1
+            # Pick the winner: highest status priority, then lowest id.
+            winner = max(
+                members,
+                key=lambda m: (self._STATUS_PRIORITY.get(m["status"], 0), -m["id"]),
+            )
+            for m in members:
+                if m["id"] != winner["id"]:
+                    removed_ids.append(m["id"])
+
+        for edge_id in removed_ids:
+            self.conn.execute("DELETE FROM staged_edges WHERE id = ?", (edge_id,))
+        if removed_ids:
+            self.conn.commit()
+
+        return {
+            "groups_collapsed": groups_collapsed,
+            "removed": len(removed_ids),
+            "removed_ids": removed_ids,
+        }
+
+    def delete_proposed_edges_for_kcs(self, session_id: str, kc_ids: list[str]) -> int:
+        """Delete AI-proposed (not confirmed) edges touching any of the given KCs.
+
+        Used by 'replace' regeneration: clears the previous AI proposals among the
+        KCs being re-analyzed while preserving confirmed (human-approved) edges.
+        Returns the number of rows deleted.
+        """
+        if not kc_ids:
+            return 0
+        placeholders = ",".join("?" for _ in kc_ids)
+        cur = self.conn.execute(
+            f"DELETE FROM staged_edges WHERE session_id = ? AND status = 'proposed' "
+            f"AND (source_kc_id IN ({placeholders}) OR target_kc_id IN ({placeholders}))",
+            (session_id, *kc_ids, *kc_ids),
+        )
+        self.conn.commit()
+        return cur.rowcount
 
     def get_staged_edge(self, session_id: str, edge_id: int) -> StagedEdgeResponse | None:
         row = self.conn.execute(
@@ -482,6 +579,78 @@ class StagingDAL:
     # ═══════════════════════════════════════════════════════
     # Staged Schemas
     # ═══════════════════════════════════════════════════════
+
+    @staticmethod
+    def _slugify(name: str) -> str:
+        """Mirror the frontend slugify so server-minted schema ids look the same."""
+        s = re.sub(r"[^a-z0-9]+", "-", (name or "").lower()).strip("-")[:50]
+        return s or "schema"
+
+    def replace_proposed_schemas(self, session_id: str, proposals: list[dict]) -> list[StagedSchemaResponse]:
+        """Persist AI schema proposals as status='proposed' schemas.
+
+        Replaces any prior *proposed* schemas in the session (confirmed schemas are
+        preserved), so re-running 'Propose Schemas' is idempotent. Proposals are
+        dicts with name / description / kc_ids / parent_schema (parent referenced by
+        name). Server-mints unique ids, resolves parents within the batch, and
+        assigns only KCs that exist in the session.
+
+        Persisting here (rather than returning browser-only proposals) means
+        proposals survive reloads, appear in the Staged Schemas list, and render on
+        the graph immediately; the existing 'Confirm All' step flips them to
+        confirmed.
+        """
+        # Clear prior proposals (cascade removes their staged_schema_kcs rows).
+        for r in self.conn.execute(
+            "SELECT id FROM staged_schemas WHERE session_id = ? AND status = 'proposed'",
+            (session_id,),
+        ).fetchall():
+            self.conn.execute("DELETE FROM staged_schemas WHERE id = ?", (r["id"],))
+
+        existing_ids = {r["id"] for r in self.conn.execute("SELECT id FROM staged_schemas")}
+        valid_kcs = {
+            r["id"] for r in self.conn.execute(
+                "SELECT id FROM staged_kcs WHERE session_id = ?", (session_id,)
+            )
+        }
+        now = _now()
+        name_to_id: dict[str, str] = {}
+        created: list[tuple[str, dict]] = []
+
+        # Pass 1: create each schema with a unique id.
+        for p in proposals:
+            name = p.get("name") or "schema"
+            base = self._slugify(name)
+            sid, i = base, 2
+            while sid in existing_ids:
+                sid = f"{base}-{i}"
+                i += 1
+            existing_ids.add(sid)
+            name_to_id[name] = sid
+            self.conn.execute(
+                "INSERT INTO staged_schemas "
+                "(id, session_id, name, description, parent_schema_id, status, created_at, updated_at) "
+                "VALUES (?, ?, ?, ?, ?, 'proposed', ?, ?)",
+                (sid, session_id, name, p.get("description"), None, now, now),
+            )
+            created.append((sid, p))
+
+        # Pass 2: resolve parents (by name, within this batch) and assign KCs.
+        for sid, p in created:
+            parent_name = p.get("parent_schema")
+            if parent_name and parent_name in name_to_id and name_to_id[parent_name] != sid:
+                self.conn.execute(
+                    "UPDATE staged_schemas SET parent_schema_id = ? WHERE id = ?",
+                    (name_to_id[parent_name], sid),
+                )
+            for kc_id in (p.get("kc_ids") or []):
+                if kc_id in valid_kcs:
+                    self.conn.execute(
+                        "INSERT OR IGNORE INTO staged_schema_kcs (schema_id, kc_id) VALUES (?, ?)",
+                        (sid, kc_id),
+                    )
+        self.conn.commit()
+        return [self.get_staged_schema(session_id, sid) for sid, _ in created]
 
     def create_staged_schema(self, session_id: str, schema: StagedSchemaCreate) -> StagedSchemaResponse:
         now = _now()

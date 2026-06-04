@@ -303,6 +303,99 @@ class TestStagedEdges:
         resp = client.get("/api/staging/test-session/edges?status=proposed")
         assert len(resp.json()) == 1
 
+    def test_create_edge_is_idempotent(self, client):
+        """Re-creating the same (source, target) edge returns the existing one, no dupe."""
+        self._setup(client)
+        body = {"source_kc_id": "STAGE-TST-001", "target_kc_id": "STAGE-TST-002"}
+        r1 = client.post("/api/staging/test-session/edges", json=body)
+        r2 = client.post("/api/staging/test-session/edges", json=body)
+        assert r1.json()["id"] == r2.json()["id"]
+        assert len(client.get("/api/staging/test-session/edges").json()) == 1
+
+    def test_dedupe_endpoint_collapses_duplicates(self, client):
+        """Pre-existing duplicates (from before the unique constraint) are collapsed."""
+        self._setup(client)
+        # Simulate the legacy state: drop the unique index (added by a later schema
+        # version) so raw duplicate rows can be inserted, bypassing idempotent create.
+        from living_map.app import get_staging_dal
+        sdal = get_staging_dal()
+        sdal.conn.execute("DROP INDEX IF EXISTS uq_staged_edges_triple")
+        sdal.conn.execute(
+            "INSERT INTO staged_edges (session_id, source_kc_id, target_kc_id, status, created_at, updated_at) "
+            "VALUES ('test-session','STAGE-TST-001','STAGE-TST-002','proposed','t','t')"
+        )
+        sdal.conn.execute(
+            "INSERT INTO staged_edges (session_id, source_kc_id, target_kc_id, status, created_at, updated_at) "
+            "VALUES ('test-session','STAGE-TST-001','STAGE-TST-002','confirmed','t','t')"
+        )
+        sdal.conn.commit()
+        assert len(client.get("/api/staging/test-session/edges").json()) == 2
+
+        resp = client.post("/api/staging/test-session/edges/dedupe")
+        assert resp.status_code == 200
+        assert resp.json()["removed"] == 1
+        remaining = client.get("/api/staging/test-session/edges").json()
+        assert len(remaining) == 1
+        # Confirmed status is preferred when collapsing a duplicate group.
+        assert remaining[0]["status"] == "confirmed"
+
+    def test_regenerate_prerequisites_no_duplicates(self, client, monkeypatch):
+        """Regenerating the same edges (merge mode) skips dupes; replace mode clears proposals."""
+        import living_map.ai_service as ai_service
+        self._setup(client)
+        proposal = {"edges": [
+            {"source_kc_id": "STAGE-TST-001", "target_kc_id": "STAGE-TST-002", "reasoning": "x"},
+        ]}
+        monkeypatch.setattr(ai_service, "propose_prerequisites", lambda *a, **k: proposal)
+        # KCs must be 'formulated' for the route to consider them, but the route only
+        # requires they exist; advance them to be safe.
+        client.post("/api/staging/test-session/kcs/batch-update", json={
+            "kc_ids": ["STAGE-TST-001", "STAGE-TST-002"],
+            "updates": {"stage_status": "formulated"},
+        })
+        body = {"kc_ids": ["STAGE-TST-001", "STAGE-TST-002"]}
+
+        r1 = client.post("/api/staging/test-session/ai/prerequisites", json=body)
+        assert r1.json()["edges_created"] == 1
+        assert len(client.get("/api/staging/test-session/edges").json()) == 1
+
+        # Re-run in default (merge) mode: the edge already exists → skipped, no dupe.
+        r2 = client.post("/api/staging/test-session/ai/prerequisites", json=body)
+        assert r2.json()["edges_created"] == 0
+        assert r2.json()["edges_skipped"] == 1
+        assert len(client.get("/api/staging/test-session/edges").json()) == 1
+
+        # Re-run in replace mode: prior proposal cleared, then re-created.
+        r3 = client.post("/api/staging/test-session/ai/prerequisites",
+                         json={**body, "replace": True})
+        assert r3.json()["edges_replaced"] == 1
+        assert r3.json()["edges_created"] == 1
+        assert len(client.get("/api/staging/test-session/edges").json()) == 1
+
+    def test_replace_preserves_confirmed_edges(self, client, monkeypatch):
+        """Replace mode must not delete confirmed (human-approved) edges."""
+        import living_map.ai_service as ai_service
+        self._setup(client)
+        # Confirm an edge the AI will also re-propose.
+        r = client.post("/api/staging/test-session/edges", json={
+            "source_kc_id": "STAGE-TST-001", "target_kc_id": "STAGE-TST-002",
+        })
+        client.patch(f"/api/staging/test-session/edges/{r.json()['id']}", json={"status": "confirmed"})
+
+        proposal = {"edges": [
+            {"source_kc_id": "STAGE-TST-001", "target_kc_id": "STAGE-TST-002", "reasoning": "x"},
+        ]}
+        monkeypatch.setattr(ai_service, "propose_prerequisites", lambda *a, **k: proposal)
+        resp = client.post("/api/staging/test-session/ai/prerequisites", json={
+            "kc_ids": ["STAGE-TST-001", "STAGE-TST-002"], "replace": True,
+        })
+        # The confirmed edge is preserved (not replaced) and re-proposal is skipped.
+        assert resp.json()["edges_replaced"] == 0
+        assert resp.json()["edges_skipped"] == 1
+        edges = client.get("/api/staging/test-session/edges").json()
+        assert len(edges) == 1
+        assert edges[0]["status"] == "confirmed"
+
 
 # ═══════════════════════════════════════════════════════
 # Staged Schemas
@@ -314,6 +407,58 @@ class TestStagedSchemas:
         client.post("/api/staging", json={"id": "test-session", "topic_name": "Test"})
         client.post("/api/staging/test-session/kcs", json={"id": "STAGE-TST-001"})
         client.post("/api/staging/test-session/kcs", json={"id": "STAGE-TST-002"})
+
+    def test_propose_schemas_persists_as_proposed(self, client, monkeypatch):
+        """'Propose Schemas' persists proposals as status='proposed' with KCs + parents."""
+        import living_map.ai_service as ai_service
+        self._setup(client)
+        client.post("/api/staging/test-session/kcs", json={"id": "STAGE-TST-003"})
+        proposal = {"schemas": [
+            {"name": "Number Sense", "description": "parent", "kc_ids": [], "parent_schema": None},
+            {"name": "Counting Basics", "description": "leaf",
+             "kc_ids": ["STAGE-TST-001", "STAGE-TST-002", "STAGE-TST-003"],
+             "parent_schema": "Number Sense"},
+        ], "unassigned": []}
+        monkeypatch.setattr(ai_service, "propose_schemas", lambda *a, **k: proposal)
+
+        resp = client.post("/api/staging/test-session/ai/schemas", json={
+            "kc_ids": ["STAGE-TST-001", "STAGE-TST-002", "STAGE-TST-003"],
+        })
+        assert resp.status_code == 200
+        assert resp.json()["created"] == 2
+
+        schemas = client.get("/api/staging/test-session/schemas").json()
+        assert len(schemas) == 2
+        assert all(s["status"] == "proposed" for s in schemas)
+        leaf = next(s for s in schemas if s["name"] == "Counting Basics")
+        parent = next(s for s in schemas if s["name"] == "Number Sense")
+        assert sorted(leaf["kc_ids"]) == ["STAGE-TST-001", "STAGE-TST-002", "STAGE-TST-003"]
+        assert leaf["parent_schema_id"] == parent["id"]  # parent resolved by name
+
+    def test_propose_schemas_replaces_prior_proposals(self, client, monkeypatch):
+        """Re-proposing replaces prior *proposed* schemas but preserves confirmed ones."""
+        import living_map.ai_service as ai_service
+        self._setup(client)
+        # A pre-existing confirmed schema must survive re-proposal.
+        client.post("/api/staging/test-session/schemas", json={
+            "id": "keep-me", "name": "Confirmed Group"})
+        client.patch("/api/staging/test-session/schemas/keep-me", json={"status": "confirmed"})
+
+        monkeypatch.setattr(ai_service, "propose_schemas", lambda *a, **k: {
+            "schemas": [{"name": "First Try", "kc_ids": ["STAGE-TST-001"], "parent_schema": None}],
+            "unassigned": [],
+        })
+        client.post("/api/staging/test-session/ai/schemas", json={"kc_ids": ["STAGE-TST-001"]})
+        assert any(s["name"] == "First Try" for s in client.get("/api/staging/test-session/schemas").json())
+
+        # Second run: different proposal should replace "First Try", keep "keep-me".
+        monkeypatch.setattr(ai_service, "propose_schemas", lambda *a, **k: {
+            "schemas": [{"name": "Second Try", "kc_ids": ["STAGE-TST-002"], "parent_schema": None}],
+            "unassigned": [],
+        })
+        client.post("/api/staging/test-session/ai/schemas", json={"kc_ids": ["STAGE-TST-002"]})
+        names = {s["name"] for s in client.get("/api/staging/test-session/schemas").json()}
+        assert names == {"Confirmed Group", "Second Try"}  # First Try replaced, confirmed kept
 
     def test_create_and_list_schemas(self, client):
         self._setup(client)

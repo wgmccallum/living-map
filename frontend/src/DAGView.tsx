@@ -60,6 +60,7 @@ interface DAGViewProps {
 
 export interface DAGViewHandle {
   resetLayout: () => void;
+  separateSchemas: () => void;
 }
 
 export const DAGView = forwardRef<DAGViewHandle, DAGViewProps>(function DAGView({
@@ -100,7 +101,11 @@ export const DAGView = forwardRef<DAGViewHandle, DAGViewProps>(function DAGView(
   // Cache node positions so they survive graph rebuilds
   const savedPositions = useRef<Map<string, Position>>(new Map());
 
-  // Expose resetLayout to parent
+  // Track which collapsed nodes we've already shown, so a new quotient can
+  // pulse/center only the node(s) that were just collapsed.
+  const prevCollapsedIds = useRef<Set<string>>(new Set());
+
+  // Expose imperative actions to parent
   useImperativeHandle(ref, () => ({
     resetLayout: () => {
       savedPositions.current.clear();
@@ -117,7 +122,83 @@ export const DAGView = forwardRef<DAGViewHandle, DAGViewProps>(function DAGView(
         } as unknown as cytoscape.LayoutOptions)).run();
       }
     },
-  }), []);
+    // Push top-level schema groups apart horizontally, preserving each node's
+    // vertical (rank) position so the top-to-bottom edge flow stays intact.
+    // Nested schemas move with their root group, since every KC belongs to a
+    // single leaf schema whose root determines the group.
+    separateSchemas: () => {
+      const cy = cyRef.current;
+      if (!cy || !frame) return;
+
+      const schemaById = new Map(frame.schemas.map((s) => [s.id, s]));
+      const rootOf = (schemaId: string): string => {
+        let s = schemaById.get(schemaId);
+        while (s && s.parent_schema_id && schemaById.has(s.parent_schema_id)) {
+          s = schemaById.get(s.parent_schema_id)!;
+        }
+        return s ? s.id : schemaId;
+      };
+
+      // Group real KC node ids by their root schema; unassigned KCs get a lane.
+      const groups = new Map<string, string[]>();
+      const assigned = new Set<string>();
+      for (const s of frame.schemas) {
+        if (s.kc_ids.length === 0) continue;
+        const root = rootOf(s.id);
+        const arr = groups.get(root) || [];
+        for (const kcId of s.kc_ids) {
+          if (cy.getElementById(kcId).nonempty()) {
+            arr.push(kcId);
+            assigned.add(kcId);
+          }
+        }
+        groups.set(root, arr);
+      }
+      const unassigned: string[] = [];
+      cy.nodes().forEach((n) => {
+        if (n.isParent()) return;
+        if (n.id().startsWith("schema-")) return;
+        if (!assigned.has(n.id())) unassigned.push(n.id());
+      });
+      if (unassigned.length > 0) groups.set("__unassigned__", unassigned);
+
+      const infos = [...groups.entries()]
+        .map(([root, ids]) => {
+          const nodes = ids.reduce(
+            (acc, id) => acc.union(cy.getElementById(id)),
+            cy.collection()
+          );
+          return { root, ids, bb: nodes.boundingBox() };
+        })
+        .filter((g) => g.ids.length > 0);
+      if (infos.length < 2) return;
+
+      // Lay groups out left-to-right in their current x-order, with a gap,
+      // shifting only x so vertical ranks (edge flow) are unchanged.
+      const GAP = 80;
+      infos.sort((a, b) => a.bb.x1 - b.bb.x1);
+      let cursor = infos[0].bb.x1;
+      for (const g of infos) {
+        const dx = cursor - g.bb.x1;
+        if (dx !== 0) {
+          g.ids.forEach((id) => {
+            const node = cy.getElementById(id);
+            const p = node.position();
+            node.position({ x: p.x + dx, y: p.y });
+          });
+        }
+        cursor += g.bb.w + GAP;
+      }
+
+      // Persist so a graph rebuild keeps the separated layout.
+      cy.nodes().forEach((node) => {
+        if (!node.isParent()) {
+          savedPositions.current.set(node.id(), { ...node.position() });
+        }
+      });
+      cy.fit(undefined, 30);
+    },
+  }), [frame]);
 
   // Build schema color map
   const schemaColorMap = useRef(new Map<string, string>());
@@ -409,6 +490,14 @@ export const DAGView = forwardRef<DAGViewHandle, DAGViewProps>(function DAGView(
           } as cytoscape.Css.Node,
         },
         {
+          selector: ".just-collapsed",
+          style: {
+            "border-width": 5,
+            "border-color": "#ff6600",
+            "border-opacity": 1,
+          } as cytoscape.Css.Node,
+        },
+        {
           selector: ".ancestor",
           style: {
             "border-width": 2,
@@ -528,6 +617,36 @@ export const DAGView = forwardRef<DAGViewHandle, DAGViewProps>(function DAGView(
     });
 
     cyRef.current = cy;
+
+    // Pulse + center the node(s) just collapsed by a quotient, so the user can
+    // see what changed. Newly collapsed = in this result but not the previous one.
+    if (quotientResult) {
+      const currentCollapsed = new Set(quotientResult.collapsed_nodes.map((c) => c.id));
+      const newlyCollapsed = [...currentCollapsed].filter((id) => !prevCollapsedIds.current.has(id));
+      prevCollapsedIds.current = currentCollapsed;
+      if (newlyCollapsed.length > 0) {
+        cy.ready(() => {
+          if (cyRef.current !== cy) return;
+          const els = newlyCollapsed
+            .reduce((acc, id) => acc.union(cy.getElementById(id)), cy.collection())
+            .filter((n) => n.nonempty());
+          if (els.empty()) return;
+          cy.animate({ center: { eles: els }, duration: 400 });
+          els.addClass("just-collapsed");
+          els.forEach((n) => {
+            n.animate(
+              { style: { width: 46, height: 46 } },
+              { duration: 300, complete: () => n.animate({ style: { width: 30, height: 30 } }, { duration: 300 }) }
+            );
+          });
+          window.setTimeout(() => {
+            if (cyRef.current === cy) els.removeClass("just-collapsed");
+          }, 1600);
+        });
+      }
+    } else {
+      prevCollapsedIds.current = new Set();
+    }
 
     return () => {
       tooltip.remove();

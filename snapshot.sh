@@ -78,6 +78,10 @@ if [ "$YES" = false ]; then
   fi
 fi
 
-cp living_map.db living_map.seed.db
+# WAL-safe copy: SQLite is in WAL mode, so a plain `cp` of living_map.db would miss
+# commits still in living_map.db-wal. sqlite3 .backup writes a consistent single
+# file; clear any stale sidecar files on the target first.
+rm -f living_map.seed.db-wal living_map.seed.db-shm
+sqlite3 living_map.db ".backup 'living_map.seed.db'"
 echo ""
 echo "Seed refreshed. ./restore.sh will now roll back to this state."

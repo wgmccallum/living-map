@@ -260,6 +260,11 @@ CREATE INDEX IF NOT EXISTS idx_staged_kcs_session ON staged_kcs(session_id);
 CREATE INDEX IF NOT EXISTS idx_staged_kcs_status ON staged_kcs(stage_status);
 CREATE INDEX IF NOT EXISTS idx_staged_edges_session ON staged_edges(session_id);
 CREATE INDEX IF NOT EXISTS idx_staged_edges_status ON staged_edges(status);
+-- A staged edge is uniquely identified by (session, source, target). This backstops
+-- the idempotent create_staged_edge so prerequisite regeneration can't create dupes.
+-- (Legacy DBs with pre-existing duplicates must run migrations/002 first.)
+CREATE UNIQUE INDEX IF NOT EXISTS uq_staged_edges_triple
+    ON staged_edges(session_id, source_kc_id, target_kc_id);
 CREATE INDEX IF NOT EXISTS idx_staged_schemas_session ON staged_schemas(session_id);
 CREATE INDEX IF NOT EXISTS idx_staged_schema_kcs_kc ON staged_schema_kcs(kc_id);
 CREATE INDEX IF NOT EXISTS idx_staged_kc_conv_session ON staged_kc_conversations(session_id);

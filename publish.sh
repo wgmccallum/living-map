@@ -36,6 +36,11 @@ if [ ! -f living_map.live.db ]; then
   echo "Note: living_map.live.db doesn't exist yet — this will be the first publish."
 fi
 
+# SQLite runs in WAL mode: recent commits live in living_map.db-wal, so a plain
+# file copy/compare of living_map.db alone would miss them. Flush the WAL into the
+# main file first so the cmp below, the size readout, and the copy are all current.
+sqlite3 living_map.db 'PRAGMA wal_checkpoint(TRUNCATE);' >/dev/null
+
 # Nothing-to-do check
 if [ -f living_map.live.db ] && cmp -s living_map.db living_map.live.db; then
   echo "living_map.db and living_map.live.db are already identical — nothing to publish."
@@ -83,7 +88,10 @@ fi
 
 # Do it. `git commit <file>` commits only that file, ignoring anything else
 # already staged — keeps the publish surgical.
-cp living_map.db living_map.live.db
+# WAL-safe copy: sqlite3 .backup produces an atomic, consistent single-file copy
+# even if the server is running. Clear any stale sidecar files on the target first.
+rm -f living_map.live.db-wal living_map.live.db-shm
+sqlite3 living_map.db ".backup 'living_map.live.db'"
 git add living_map.live.db
 git commit living_map.live.db -m "$MSG"
 git push

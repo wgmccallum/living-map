@@ -374,6 +374,10 @@ class StagedSchemaKCsAdd(BaseModel):
 
 class AIBatchRequest(BaseModel):
     kc_ids: list[str]
+    # For prerequisite regeneration: when True, delete existing AI-proposed edges
+    # among these KCs before proposing again (confirmed edges are preserved).
+    # When False (default), existing edges are kept and duplicates are skipped.
+    replace: bool = False
 
 
 # ── KC Conversations (Grain Review Chat) ──

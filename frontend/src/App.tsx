@@ -292,7 +292,12 @@ export function App() {
     <div className="app-layout">
       {/* Left: Control Panel */}
       <div className="control-panel">
-        <h1>Living Map</h1>
+        <div className="app-header">
+          <h1>Living Map</h1>
+          <a className="toolbar-btn staging-link" href="/staging" title="Open the staging dashboard">
+            Staging →
+          </a>
+        </div>
 
         <div className="search-bar">
           <input
@@ -811,6 +816,15 @@ export function App() {
             >
               Reset Layout
             </button>
+            {showSchemaOverlay && (
+              <button
+                className="toolbar-btn"
+                onClick={() => dagViewRef.current?.separateSchemas()}
+                title="Spread schema boxes apart horizontally without changing the prerequisite flow"
+              >
+                Separate Schemas
+              </button>
+            )}
             {showAddKCForm && (
               <div className="add-domain-form">
                 <label className="form-label">Schema</label>

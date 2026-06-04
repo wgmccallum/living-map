@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sqlite3
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -982,6 +983,14 @@ def validate_staged_edges(session_id: str):
     return get_staging_dal().validate_staged_edges(session_id)
 
 
+@app.post("/api/staging/{session_id}/edges/dedupe")
+def dedupe_staged_edges(session_id: str):
+    sdal = get_staging_dal()
+    if not sdal.get_session(session_id):
+        raise HTTPException(404, f"Staging session {session_id} not found")
+    return sdal.dedupe_staged_edges(session_id)
+
+
 # ── Staged Schemas ──
 
 
@@ -1072,20 +1081,13 @@ async def ingest_document(session_id: str, file: UploadFile = File(...)):
         raise HTTPException(422, "No content could be extracted from the document")
 
     # Generate staged KC IDs based on session ID
-    # Convention: STAGE-{PREFIX}-{NNN} where PREFIX is derived from session ID
+    # Convention: STAGE-{PREFIX}-{NNN} where PREFIX is derived from session ID.
+    # staged_kcs.id is a GLOBAL primary key, but the prefix is lossy (every
+    # "linear-*" session collapses to "LINE"), so numbering must be global per
+    # prefix — not per session — or a fresh session restarts at 001 and collides
+    # with ids the same prefix already minted elsewhere (UNIQUE violation -> 500).
     prefix = session_id.split("-")[0].upper()[:4] if "-" in session_id else session_id.upper()[:4]
-
-    # Find the highest existing staged KC number for this session
-    existing_kcs = sdal.list_staged_kcs(session_id)
-    existing_nums = []
-    for kc in existing_kcs:
-        parts = kc.id.rsplit("-", 1)
-        if len(parts) == 2:
-            try:
-                existing_nums.append(int(parts[1]))
-            except ValueError:
-                pass
-    next_num = max(existing_nums, default=0) + 1
+    next_num = sdal.max_staged_kc_number(prefix) + 1
 
     # Create staged KCs from content chunks
     created_kcs = []
@@ -1098,7 +1100,15 @@ async def ingest_document(session_id: str, file: UploadFile = File(...)):
             source_reference=chunk.source_reference,
             stage_status="proposed",
         )
-        created = sdal.create_staged_kc(session_id, kc)
+        try:
+            created = sdal.create_staged_kc(session_id, kc)
+        except sqlite3.IntegrityError as e:
+            raise HTTPException(
+                409,
+                f"Staged KC id {kc_id} already exists. The session prefix "
+                f"'{prefix}' is shared with another session; rename the session "
+                f"to use a distinct prefix and retry. ({e})",
+            )
         created_kcs.append(created)
         manifest_items.append({
             "staged_kc_id": kc_id,
@@ -1253,41 +1263,62 @@ def ai_prerequisites(session_id: str, body: AIBatchRequest):
     if not staged_kcs:
         raise HTTPException(400, "No valid KC IDs provided")
 
-    # Load existing confirmed edges
+    # Load existing confirmed edges (for AI context — these are kept regardless)
     existing_edges = [
         e.model_dump() for e in
         sdal.list_staged_edges(session_id, status="confirmed")
     ]
 
+    # Regeneration mode: in 'replace' mode, clear the previous AI proposals among
+    # these KCs before re-proposing (confirmed edges are preserved). In default
+    # ('merge') mode, existing edges are kept and re-proposed duplicates are skipped.
+    edges_replaced = 0
+    if body.replace:
+        edges_replaced = sdal.delete_proposed_edges_for_kcs(session_id, body.kc_ids)
+
     try:
         result = propose_prerequisites(staged_kcs, existing_edges=existing_edges)
 
-        # Auto-create proposed edges from the result
+        # Snapshot existing (source, target) pairs so we can distinguish edges we
+        # actually create from re-proposed duplicates (create is now idempotent).
+        existing_pairs = {
+            (e.source_kc_id, e.target_kc_id)
+            for e in sdal.list_staged_edges(session_id)
+        }
+
         edges_created = []
+        edges_skipped = 0
         proposed_edges = result.get("edges", result) if isinstance(result, dict) else result
         if isinstance(proposed_edges, list):
             for edge in proposed_edges:
                 source = edge.get("source_kc_id")
                 target = edge.get("target_kc_id")
                 reasoning = edge.get("reasoning", "")
-                if source and target:
-                    try:
-                        created = sdal.create_staged_edge(
-                            session_id,
-                            StagedEdgeCreate(
-                                source_kc_id=source,
-                                target_kc_id=target,
-                                ai_reasoning=reasoning,
-                            ),
-                        )
-                        edges_created.append(created.model_dump())
-                    except Exception:
-                        pass  # Skip duplicate or invalid edges
+                if not (source and target):
+                    continue
+                if (source, target) in existing_pairs:
+                    edges_skipped += 1  # already staged — no duplicate created
+                    continue
+                try:
+                    created = sdal.create_staged_edge(
+                        session_id,
+                        StagedEdgeCreate(
+                            source_kc_id=source,
+                            target_kc_id=target,
+                            ai_reasoning=reasoning,
+                        ),
+                    )
+                    edges_created.append(created.model_dump())
+                    existing_pairs.add((source, target))
+                except Exception:
+                    pass  # Skip invalid edges (e.g. unknown KC)
 
         return {
             "session_id": session_id,
             "proposals": result,
             "edges_created": len(edges_created),
+            "edges_skipped": edges_skipped,
+            "edges_replaced": edges_replaced,
         }
     except RuntimeError as e:
         raise HTTPException(503, str(e))
@@ -1318,7 +1349,22 @@ def ai_schemas(session_id: str, body: AIBatchRequest):
 
     try:
         result = propose_schemas(staged_kcs, confirmed_edges)
-        return {"session_id": session_id, "schema_proposals": result}
+
+        # Persist proposals immediately as status='proposed' schemas (replacing any
+        # prior proposals). This makes them survive reloads, appear in the Staged
+        # Schemas list, and render on the graph — the existing 'Confirm All' step
+        # then flips them to confirmed.
+        proposals = result.get("schemas", result) if isinstance(result, dict) else result
+        persisted = []
+        if isinstance(proposals, list):
+            persisted = sdal.replace_proposed_schemas(session_id, proposals)
+
+        return {
+            "session_id": session_id,
+            "schema_proposals": result,
+            "schemas": [s.model_dump() for s in persisted],
+            "created": len(persisted),
+        }
     except RuntimeError as e:
         raise HTTPException(503, str(e))
     except Exception as e:

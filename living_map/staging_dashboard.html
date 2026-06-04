@@ -200,7 +200,7 @@
   <h1>Living Map — Staging Dashboard</h1>
   <span class="subtitle">Moderated Bulk Add Pipeline</span>
   <span style="flex:1"></span>
-  <a href="/" class="btn btn-outline btn-sm">← Main App</a>
+  <a href="/" class="btn btn-outline btn-sm">← Knowledge Map</a>
 </div>
 
 <div class="container">
@@ -246,6 +246,7 @@
     <div style="margin-bottom:16px">
       <button class="btn btn-outline btn-sm" onclick="showSessionsList()">← All Sessions</button>
       <span id="session-title" style="font-size:18px; font-weight:600; margin-left:12px;"></span>
+      <button class="btn btn-outline btn-sm" onclick="renameSession(currentSessionId)" style="margin-left:8px;" title="Rename this session">Rename</button>
       <span id="session-status-badge" style="margin-left:8px;"></span>
     </div>
 
@@ -381,6 +382,7 @@
               <option value="rejected">Rejected</option>
             </select>
             <button class="btn btn-sm btn-success" onclick="batchConfirmEdges()" id="btn-confirm-all-edges">Confirm All Proposed</button>
+            <button class="btn btn-sm btn-outline" onclick="dedupeEdges()" title="Remove duplicate edges (same source → target), keeping confirmed over proposed">Remove Duplicates</button>
             <button class="btn btn-sm btn-primary" onclick="validateEdges()">Validate Acyclicity</button>
           </div>
         </div>
@@ -479,6 +481,8 @@
           <div class="graph-toolbar">
             <button class="btn btn-sm btn-primary" onclick="loadGraph()">Refresh Graph</button>
             <button class="btn btn-sm btn-outline" onclick="graphFitAll()">Fit All</button>
+            <button class="btn btn-sm btn-outline" onclick="compactSchemaLayout()" title="Pack each schema's KCs into a compact grid and tile the schema boxes">Compact Schemas</button>
+            <button class="btn btn-sm btn-outline" onclick="separateGraphSchemas()" title="Spread schema boxes apart without changing the prerequisite flow">Separate Schemas</button>
             <button id="graph-add-edge-btn" class="btn btn-sm btn-outline" onclick="toggleGraphAddEdge()">Add Edge</button>
             <span id="graph-add-edge-status" style="font-size:12px;color:var(--primary);font-weight:500;"></span>
             <select id="graph-status-filter" onchange="loadGraph()" style="font-size:13px;">
@@ -537,8 +541,17 @@ async function api(method, path, body = null) {
   }
   const resp = await fetch(API + path, opts);
   if (resp.status === 204) return null;
-  const data = await resp.json();
-  if (!resp.ok) throw new Error(data.detail || data.error || JSON.stringify(data));
+  const raw = await resp.text();
+  let data;
+  try {
+    data = raw ? JSON.parse(raw) : null;
+  } catch {
+    // Non-JSON body (e.g. 500 "Internal Server Error", 502/503 gateway page).
+    // Surface the real status + a snippet instead of a misleading JSON-parse error.
+    const snippet = raw.trim().slice(0, 200);
+    throw new Error(`${resp.status} ${resp.statusText}${snippet ? ': ' + snippet : ''}`);
+  }
+  if (!resp.ok) throw new Error((data && (data.detail || data.error)) || JSON.stringify(data));
   return data;
 }
 
@@ -582,6 +595,7 @@ async function loadSessions() {
         <td>${totalEdges}</td>
         <td>
           <button class="btn btn-outline btn-sm" onclick="openSession('${s.id}')">Open</button>
+          <button class="btn btn-outline btn-sm" onclick="renameSession('${s.id}')" style="margin-left:4px;" title="Rename this session">Rename</button>
           <button class="btn btn-sm" onclick="deleteSession('${s.id}')" style="color:var(--danger);border-color:var(--danger);background:transparent;margin-left:4px;" title="Delete session and all its data">Delete</button>
         </td>
       </tr>`;
@@ -589,6 +603,23 @@ async function loadSessions() {
   } catch (e) {
     toast(e.message, 'error');
   }
+}
+
+async function renameSession(sessionId) {
+  if (!sessionId) return;
+  try {
+    const s = await api('GET', `/api/staging/${sessionId}`);
+    const current = s.topic_name || '';
+    const next = prompt('Rename session (display name):', current);
+    if (next === null) return;
+    const trimmed = next.trim();
+    if (!trimmed) { toast('Name cannot be empty', 'error'); return; }
+    if (trimmed === current) return;
+    await api('PATCH', `/api/staging/${sessionId}`, { topic_name: trimmed });
+    toast('Session renamed');
+    if (currentSessionId === sessionId) refreshSession();
+    loadSessions();
+  } catch (e) { toast(e.message, 'error'); }
 }
 
 async function deleteSession(sessionId) {
@@ -636,6 +667,10 @@ async function openSession(sessionId) {
   document.getElementById('ai-results-content').innerHTML = '';
   correctnessCheckDone = false;
   window._manuallyEditedKCs = new Set();
+  // Reset graph layout state so positions from a previous session can't bleed
+  // into this one's render (positions are keyed by KC id and persist globally).
+  savedGraphPositions = {};
+  if (cyInstance) { cyInstance.destroy(); cyInstance = null; }
   closeConversation();
   await refreshSession();
   checkAIStatus();
@@ -1761,11 +1796,32 @@ async function aiPrerequisites() {
   if (!aiAvailable) { toast('AI is not configured. Set ANTHROPIC_API_KEY and restart.', 'error'); return; }
   const kcs = await api('GET', `/api/staging/${currentSessionId}/kcs?stage_status=formulated`);
   if (kcs.length === 0) { toast('No formulated KCs. Formulate KCs first.', 'error'); return; }
+  const kcIds = kcs.map(k => k.id);
+
+  // If AI proposals already exist among these KCs, ask how to handle a re-run.
+  // Replace clears prior *proposed* edges first (confirmed edges are always kept);
+  // Merge keeps everything and skips any re-proposed duplicates.
+  let replace = false;
+  const existing = await api('GET', `/api/staging/${currentSessionId}/edges?status=proposed`);
+  if (existing.length > 0) {
+    const choice = prompt(
+      `${existing.length} AI-proposed edge(s) already exist in this session.\n\n` +
+      `Type "replace" to clear the existing AI proposals before regenerating,\n` +
+      `or "merge" to keep them and add only new edges (duplicates skipped).\n\n` +
+      `Confirmed edges are preserved either way. Cancel to abort.`,
+      'merge'
+    );
+    if (choice === null) return;  // cancelled
+    const c = choice.trim().toLowerCase();
+    if (c === 'replace') replace = true;
+    else if (c !== 'merge' && c !== '') { toast('Aborted — type "replace" or "merge".', 'error'); return; }
+  }
 
   aiSetWorking(true);
   try {
     const result = await api('POST', `/api/staging/${currentSessionId}/ai/prerequisites`, {
-      kc_ids: kcs.map(k => k.id),
+      kc_ids: kcIds,
+      replace,
     });
 
     const proposals = result.proposals || {};
@@ -1808,10 +1864,14 @@ async function aiPrerequisites() {
 
     html += `<div style="margin-top:12px;"><button class="btn btn-sm btn-primary" onclick="switchTab('graph')">View in Graph</button></div>`;
 
-    showAIResults(`Prerequisite Analysis — ${result.edges_created || 0} edges created`, html);
+    const extras = [];
+    if (result.edges_replaced) extras.push(`${result.edges_replaced} replaced`);
+    if (result.edges_skipped) extras.push(`${result.edges_skipped} skipped (already present)`);
+    const extraStr = extras.length ? ` · ${extras.join(' · ')}` : '';
+    showAIResults(`Prerequisite Analysis — ${result.edges_created || 0} edges created${extraStr}`, html);
     loadStagedEdges();
     refreshSession();
-    toast(`Prerequisites proposed: ${result.edges_created || 0} edges created`);
+    toast(`Prerequisites proposed: ${result.edges_created || 0} created${extraStr}`);
   } catch (e) {
     toast(e.message, 'error');
   }
@@ -1907,6 +1967,21 @@ async function loadStagedEdges() {
         <button class="btn btn-sm btn-outline" onclick="deleteEdge(${e.id})">×</button>
       </div>
     `).join('');
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function dedupeEdges() {
+  if (!currentSessionId) return;
+  if (!confirm('Remove duplicate edges in this session?\n\nFor each repeated source → target, one edge is kept (confirmed status preferred) and the rest are deleted.')) return;
+  try {
+    const result = await api('POST', `/api/staging/${currentSessionId}/edges/dedupe`);
+    if (result.removed > 0) {
+      toast(`Removed ${result.removed} duplicate edge(s) across ${result.groups_collapsed} pair(s)`);
+    } else {
+      toast('No duplicate edges found');
+    }
+    loadStagedEdges();
+    refreshSession();
   } catch (e) { toast(e.message, 'error'); }
 }
 
@@ -2253,15 +2328,63 @@ async function aiProposeSchemas() {
     // Handle both new format {schemas, unassigned} and legacy array format
     const proposals = Array.isArray(raw) ? raw : (raw.schemas || []);
     const unassigned = Array.isArray(raw) ? [] : (raw.unassigned || []);
-    window._schemaProposals = proposals;
-    window._schemaUnassigned = unassigned;
-    renderSchemaProposals(proposals, kcs, unassigned);
-    toast(`Schema proposals: ${proposals.length} schemas covering ${new Set(proposals.flatMap(p => p.kc_ids)).size} KCs${unassigned.length ? `, ${unassigned.length} unassigned` : ''}`);
+
+    // Proposals are now persisted server-side as status='proposed' schemas, so they
+    // show up in the Staged Schemas list and on the graph. Auto-enable the graph's
+    // "Show Schemas" toggle and refresh both views.
+    const tog = document.getElementById('graph-schema-toggle');
+    if (tog) tog.checked = true;
+    renderSchemaProposalSummary(proposals, unassigned, result.created);
+    loadStagedSchemas();
+    loadGraph();
+    refreshSession();
+    const covered = new Set(proposals.flatMap(p => p.kc_ids || [])).size;
+    toast(`${result.created} schemas saved (proposed) covering ${covered} KCs${unassigned.length ? `, ${unassigned.length} unassigned` : ''}. Review & confirm below.`);
   } catch (e) {
     toast(e.message, 'error');
   }
   document.getElementById('schema-ai-working').classList.add('hidden');
   document.getElementById('btn-ai-schemas').disabled = false;
+}
+
+// Read-only overview shown after proposing. Proposals are already persisted as
+// 'proposed' schemas (editable/confirmable in the Staged Schemas list below), so
+// this panel just summarizes them and surfaces any unassigned KCs.
+function renderSchemaProposalSummary(proposals, unassigned = [], created = 0) {
+  const panel = document.getElementById('schema-proposals-panel');
+  const title = document.getElementById('schema-proposals-title');
+  const content = document.getElementById('schema-proposals-content');
+  if (!panel || !content) return;
+  panel.classList.remove('hidden');
+  if (title) title.textContent = `AI Schema Proposals — ${created} saved as proposed`;
+
+  const byName = Object.fromEntries(proposals.map(p => [p.name, p]));
+  const isParent = new Set(proposals.filter(p => p.parent_schema).map(p => p.parent_schema));
+  const line = (p, depth) => `
+    <div class="kc-detail" style="border-left:3px solid var(--primary);${depth ? 'margin-left:24px;' : ''}">
+      <div class="kc-desc"><strong>${escapeHtml(p.name)}</strong>
+        ${isParent.has(p.name) ? '<span class="badge" style="background:#e0e7ff;color:#3730a3;margin-left:6px;">parent</span>' : ''}
+        <span class="meta" style="margin-left:6px;">${(p.kc_ids || []).length} KCs</span>
+      </div>
+      ${p.description ? `<div class="meta">${escapeHtml(p.description)}</div>` : ''}
+    </div>`;
+  const tops = proposals.filter(p => !p.parent_schema);
+  let html = '<div class="meta" style="margin-bottom:8px;">Saved as <strong>proposed</strong> schemas — review, edit, and confirm them in <strong>Staged Schemas</strong> below. Toggle <strong>Show Schemas</strong> on the Graph tab to see them.</div>';
+  for (const p of tops) {
+    html += line(p, 0);
+    for (const c of proposals.filter(x => x.parent_schema === p.name)) html += line(c, 1);
+  }
+  // Children whose parent wasn't itself proposed
+  for (const p of proposals) {
+    if (p.parent_schema && !byName[p.parent_schema]) html += line(p, 0);
+  }
+  if (unassigned.length) {
+    html += `<div class="kc-detail" style="border-left:3px solid var(--danger);margin-top:8px;">
+      <div class="kc-desc"><strong>Unassigned (${unassigned.length})</strong> — didn't fit a group of 3+</div>
+      <div class="meta">${unassigned.map(u => `<code>${escapeHtml(typeof u === 'string' ? u : (u.id || u.kc_id || ''))}</code>`).join(' ')}</div>
+    </div>`;
+  }
+  content.innerHTML = html;
 }
 
 function renderSchemaProposals(proposals, allKCs, unassigned = []) {
@@ -2754,10 +2877,12 @@ function renderGraph(kcs, edges, schemas) {
           'label': 'data(label)',
           'text-valign': 'top',
           'text-halign': 'center',
-          'font-size': '12px',
+          'font-size': '20px',
           'font-weight': 'bold',
-          'color': '#475569',
-          'text-margin-y': -6,
+          'color': '#334155',
+          'text-margin-y': -8,
+          'text-wrap': 'wrap',
+          'text-max-width': '200px',
         }
       },
       {
@@ -3017,6 +3142,160 @@ function graphFitAll() {
   if (cyInstance) {
     cyInstance.fit(undefined, 30);
   }
+}
+
+// Schema-aware compaction: instead of letting dagre spread a schema's KCs
+// across many ranks (which sprawls horizontally), pack each schema's KCs into a
+// tight grid, pack nested schemas recursively, and tile the top-level boxes in
+// a wrapping grid. Trades the global top-to-bottom edge flow for compactness.
+function compactSchemaLayout() {
+  const cy = cyInstance;
+  if (!cy) return;
+
+  const KCW = 34, KCH = 34;   // KC footprint (node is 30px + breathing room)
+  const PAD = 20;             // inner padding inside a schema box (~ :parent padding)
+  const GAP = 30;             // gap between sibling blocks in a grid
+  const FONT = 20, MAXLW = 200, LINEH = FONT * 1.3; // must match the schema label style
+
+  // Measure a wrapped schema label so we can size the box to fit it (no bleed
+  // into neighbours) and reserve vertical room above the box for the title.
+  const meas = document.createElement('canvas').getContext('2d');
+  meas.font = `bold ${FONT}px sans-serif`;
+  function labelDim(text) {
+    const words = String(text || '').split(/\s+/).filter(Boolean);
+    if (!words.length) return { w: 0, h: 0 };
+    let lines = 1, cur = '', widest = 0;
+    for (const w of words) {
+      const t = cur ? cur + ' ' + w : w;
+      if (meas.measureText(t).width > MAXLW && cur) {
+        widest = Math.max(widest, meas.measureText(cur).width);
+        lines++; cur = w;
+      } else { cur = t; }
+    }
+    widest = Math.max(widest, meas.measureText(cur).width);
+    return { w: Math.min(MAXLW, widest), h: lines * LINEH + 12 };
+  }
+
+  // A "block" knows its size and how to place its descendant KCs given a top-left origin.
+  function leafBlock(kcNode) {
+    return { w: KCW, h: KCH, place: (x, y) => kcNode.position({ x: x + KCW / 2, y: y + KCH / 2 }) };
+  }
+
+  // Arrange child blocks in a near-square grid. `label` (or null) reserves top
+  // room and a minimum width so the schema's own title fits without overlapping.
+  function packGrid(blocks, label) {
+    const labelH = label ? label.h : 0;
+    const labelW = label ? label.w : 0;
+    const n = blocks.length;
+    const cols = Math.max(1, Math.ceil(Math.sqrt(n)));
+    const rows = Math.max(1, Math.ceil(n / cols));
+    const colW = new Array(cols).fill(0);
+    const rowH = new Array(rows).fill(0);
+    blocks.forEach((b, i) => {
+      const r = Math.floor(i / cols), c = i % cols;
+      if (b.w > colW[c]) colW[c] = b.w;
+      if (b.h > rowH[r]) rowH[r] = b.h;
+    });
+    const innerW = colW.reduce((a, v) => a + v, 0) + GAP * Math.max(0, cols - 1);
+    const innerH = rowH.reduce((a, v) => a + v, 0) + GAP * Math.max(0, rows - 1);
+    const contentW = Math.max(innerW, labelW);
+    return {
+      w: contentW + PAD * 2,
+      h: innerH + PAD * 2 + labelH,
+      place(x, y) {
+        const gridOffset = (contentW - innerW) / 2; // centre the KC grid under the title
+        let cy0 = y + labelH + PAD;
+        for (let r = 0; r < rows; r++) {
+          let cx = x + PAD + gridOffset;
+          for (let c = 0; c < cols; c++) {
+            const i = r * cols + c;
+            if (i >= n) break;
+            const b = blocks[i];
+            b.place(cx + (colW[c] - b.w) / 2, cy0 + (rowH[r] - b.h) / 2);
+            cx += colW[c] + GAP;
+          }
+          cy0 += rowH[r] + GAP;
+        }
+      },
+    };
+  }
+
+  // Bottom-up size a compound (schema) node from its direct children.
+  function measure(node) {
+    const blocks = [];
+    node.children().forEach((ch) => {
+      blocks.push(ch.data('isSchema') ? measure(ch) : leafBlock(ch));
+    });
+    return packGrid(blocks, labelDim(node.data('label')));
+  }
+
+  // Top-level blocks: orphan schemas + loose KCs (no schema parent).
+  const topBlocks = [];
+  cy.nodes().forEach((n) => {
+    if (n.isChild()) return;
+    topBlocks.push(n.data('isSchema') ? measure(n) : leafBlock(n));
+  });
+  if (topBlocks.length === 0) return;
+
+  const root = packGrid(topBlocks, null);
+  cy.batch(() => root.place(0, 0));
+
+  cy.nodes().forEach((n) => { if (!n.isParent()) savedGraphPositions[n.id()] = { ...n.position() }; });
+  cy.fit(undefined, 30);
+}
+
+// Spread top-level schema boxes apart along the x-axis without changing any
+// node's y (rank), so the top-to-bottom prerequisite flow stays intact while
+// overlapping schema boxes fly apart. Nested schemas move with their root box.
+function separateGraphSchemas() {
+  const cy = cyInstance;
+  if (!cy) return;
+
+  // Group each leaf KC node under its top-level compound (schema) ancestor.
+  const groups = {};
+  const loose = [];
+  cy.nodes().forEach(function(n) {
+    if (n.data('isSchema')) return;
+    let top = n, p = n.parent();
+    while (p && p.nonempty()) { top = p; p = p.parent(); }
+    if (top.id() === n.id()) {
+      loose.push([n]);
+    } else {
+      (groups[top.id()] = groups[top.id()] || []).push(n);
+    }
+  });
+
+  const infos = Object.keys(groups).map(function(k) { return groups[k]; })
+    .concat(loose)
+    .map(function(nodesArr) {
+      let x1 = Infinity, x2 = -Infinity;
+      nodesArr.forEach(function(n) {
+        const bb = n.boundingBox();
+        if (bb.x1 < x1) x1 = bb.x1;
+        if (bb.x2 > x2) x2 = bb.x2;
+      });
+      return { nodes: nodesArr, x1: x1, w: x2 - x1 };
+    });
+  if (infos.length < 2) return;
+
+  const GAP = 80;
+  infos.sort(function(a, b) { return a.x1 - b.x1; });
+  let cursor = infos[0].x1;
+  infos.forEach(function(g) {
+    const dx = cursor - g.x1;
+    if (dx !== 0) {
+      g.nodes.forEach(function(n) {
+        const pos = n.position();
+        n.position({ x: pos.x + dx, y: pos.y });
+      });
+    }
+    cursor += g.w + GAP;
+  });
+
+  cy.nodes().forEach(function(n) {
+    if (!n.isParent()) savedGraphPositions[n.id()] = { ...n.position() };
+  });
+  cy.fit(undefined, 30);
 }
 
 // ── Graph Editing Functions ──

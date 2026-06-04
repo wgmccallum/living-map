@@ -88,6 +88,8 @@ Deploys are triggered by pushing to the GitHub branch Railway is watching. Railw
 - **`living_map.live.db`** — committed to git; deployed as the production seed/snapshot.
 - **`living_map.seed.db`** — original snapshot for `./restore.sh`. Gitignored.
 
+> **WAL-safe copies:** SQLite runs in WAL mode, so recent commits live in `living_map.db-wal`. Never copy the DB with a plain `cp` — it captures only the main file and drops uncheckpointed data. Use `sqlite3 living_map.db ".backup 'dest.db'"` (atomic, consistent, server-safe) or checkpoint first with `PRAGMA wal_checkpoint(TRUNCATE)`. `publish.sh`, `snapshot.sh`, and `deploy.sh` already do this.
+
 ### Operating Railway
 - Push to GitHub → Railway auto-deploys
 - `railway logs` — tail production logs (requires `brew install railway` + `railway link`)
