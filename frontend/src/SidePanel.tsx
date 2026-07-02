@@ -345,15 +345,15 @@ export function SidePanel({ selectedNodeId, kcs, edges, frame, onSelectNode, onD
                     {frame.schemas
                       .filter((s) => s.id !== schemaId)
                       .map((s) => (
-                        <option key={s.id} value={s.id}>{s.id}: {s.name}</option>
+                        <option key={s.id} value={s.id}>{s.name}</option>
                       ))}
                   </select>
                   <button className="edit-cancel" onClick={() => setEditingField(null)}>Cancel</button>
                 </div>
               ) : parentSchema ? (
                 <>
-                  <span className="node-link" onClick={() => onSelectNode(`schema-${parentSchema.id}`)}>
-                    {parentSchema.id}: {parentSchema.name}
+                  <span className="node-link" title={parentSchema.id} onClick={() => onSelectNode(`schema-${parentSchema.id}`)}>
+                    {parentSchema.name}
                   </span>{" "}
                   <button className="add-btn" onClick={() => setEditingField("schema_parent")}>Change</button>
                 </>
@@ -379,8 +379,8 @@ export function SidePanel({ selectedNodeId, kcs, edges, frame, onSelectNode, onD
               <div className="detail-value node-list">
                 {childSchemas.map((cs) => (
                   <div key={cs.id}>
-                    <span className="node-link" onClick={() => onSelectNode(`schema-${cs.id}`)}>
-                      {cs.id}: {cs.name}
+                    <span className="node-link" title={cs.id} onClick={() => onSelectNode(`schema-${cs.id}`)}>
+                      {cs.name}
                     </span>
                   </div>
                 ))}
@@ -932,8 +932,8 @@ export function SidePanel({ selectedNodeId, kcs, edges, frame, onSelectNode, onD
           <div className="detail-value node-list">
             {schemas.map((s) => (
               <div key={s.id} className="editable-list-item">
-                <span className="node-link" onClick={() => onSelectNode(`schema-${s.id}`)}>
-                  {s.id}: {s.name}
+                <span className="node-link" title={s.id} onClick={() => onSelectNode(`schema-${s.id}`)}>
+                  {s.name}
                 </span>
               </div>
             ))}
@@ -968,7 +968,7 @@ export function SidePanel({ selectedNodeId, kcs, edges, frame, onSelectNode, onD
                   >
                     <option value="">Move to schema...</option>
                     {otherSchemas.map((s) => (
-                      <option key={s.id} value={s.id}>{s.id}: {s.name}</option>
+                      <option key={s.id} value={s.id}>{s.name}</option>
                     ))}
                   </select>
                   <button className="edit-cancel" onClick={() => setEditingField(null)}>Cancel</button>

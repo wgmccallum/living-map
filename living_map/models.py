@@ -370,6 +370,15 @@ class StagedSchemaKCsAdd(BaseModel):
     kc_ids: list[str]
 
 
+class StagingCommitRequest(BaseModel):
+    """Parameters for committing a staging session to the production tables."""
+    frame_id: str
+    frame_name: str | None = None
+    frame_description: str | None = None
+    id_prefix_from: str = "STAGE-"
+    id_prefix_to: str = ""
+
+
 # AI Proposal Requests
 
 class AIBatchRequest(BaseModel):

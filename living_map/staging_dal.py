@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 
 import networkx as nx
 
+from .frame_engine import check_convexity
 from .models import (
     ReviewerComment,
     StagedEdgeCreate,
@@ -813,6 +814,315 @@ class StagingDAL:
             "message": "All checks passed" if valid else "; ".join(issues),
             "empty_schemas": empty,
             "orphan_schemas": orphans,
+        }
+
+    # ═══════════════════════════════════════════════════════
+    # Commit Pipeline (Step 7)
+    # ═══════════════════════════════════════════════════════
+
+    def precommit_report(
+        self,
+        session_id: str,
+        frame_id: str,
+        id_prefix_from: str,
+        id_prefix_to: str,
+    ) -> dict | None:
+        """Dry-run of commit_session: report what would be committed and any blockers.
+
+        Returns None if the session doesn't exist. Otherwise a report dict with
+        counts, a sample of the ID transformation, blocking issues, warnings,
+        and a full structural validation (acyclicity, connectedness, per-schema
+        convexity on effective atom sets, laminarity) of the would-be frame.
+        """
+        session = self.conn.execute(
+            "SELECT * FROM staging_sessions WHERE id = ?", (session_id,)
+        ).fetchone()
+        if not session:
+            return None
+
+        blockers: list[str] = []
+        warnings: list[str] = []
+        if session["status"] == "committed":
+            blockers.append("Session has already been committed")
+
+        kc_rows = self.conn.execute(
+            "SELECT id, stage_status FROM staged_kcs "
+            "WHERE session_id = ? AND stage_status != 'stale' ORDER BY id",
+            (session_id,),
+        ).fetchall()
+        if not kc_rows:
+            blockers.append("Session has no live (non-stale) KCs")
+
+        bad_prefix = [r["id"] for r in kc_rows if not r["id"].startswith(id_prefix_from)]
+        if bad_prefix:
+            blockers.append(
+                f"KC ids not matching prefix '{id_prefix_from}': {', '.join(bad_prefix[:5])}"
+                + (f" (+{len(bad_prefix) - 5} more)" if len(bad_prefix) > 5 else "")
+            )
+        id_map = {
+            r["id"]: id_prefix_to + r["id"][len(id_prefix_from):]
+            for r in kc_rows
+            if r["id"].startswith(id_prefix_from)
+        }
+        live_ids = {r["id"] for r in kc_rows}
+
+        not_reviewed = [r["id"] for r in kc_rows if r["stage_status"] != "schema_assigned"]
+        if not_reviewed:
+            blockers.append(
+                f"KCs not fully reviewed (expected schema_assigned): {', '.join(not_reviewed[:5])}"
+                + (f" (+{len(not_reviewed) - 5} more)" if len(not_reviewed) > 5 else "")
+            )
+
+        collisions = [
+            new_id for new_id in id_map.values()
+            if self.conn.execute(
+                "SELECT 1 FROM knowledge_components WHERE id = ?", (new_id,)
+            ).fetchone()
+        ]
+        if collisions:
+            blockers.append(f"Committed KC ids already exist: {', '.join(collisions[:5])}")
+        if self.conn.execute("SELECT 1 FROM frames WHERE id = ?", (frame_id,)).fetchone():
+            blockers.append(f"Frame '{frame_id}' already exists")
+
+        schema_rows = self.conn.execute(
+            "SELECT id, name, parent_schema_id, status FROM staged_schemas "
+            "WHERE session_id = ? AND status != 'stale' ORDER BY id",
+            (session_id,),
+        ).fetchall()
+        unconfirmed = [r["id"] for r in schema_rows if r["status"] != "confirmed"]
+        if unconfirmed:
+            blockers.append(f"Unconfirmed (proposed) schemas: {', '.join(unconfirmed)}")
+        confirmed_schema_ids = {r["id"] for r in schema_rows if r["status"] == "confirmed"}
+        bad_parents = [
+            r["id"] for r in schema_rows
+            if r["parent_schema_id"] and r["parent_schema_id"] not in confirmed_schema_ids
+        ]
+        if bad_parents:
+            blockers.append(f"Schemas with missing/unconfirmed parents: {', '.join(bad_parents)}")
+
+        membership_rows = self.conn.execute(
+            "SELECT sk.schema_id, sk.kc_id FROM staged_schema_kcs sk "
+            "JOIN staged_schemas s ON s.id = sk.schema_id "
+            "WHERE s.session_id = ? AND s.status = 'confirmed'",
+            (session_id,),
+        ).fetchall()
+        memberships = [
+            (r["schema_id"], r["kc_id"]) for r in membership_rows if r["kc_id"] in live_ids
+        ]
+        assigned = {kc for _, kc in memberships}
+        unassigned = sorted(live_ids - assigned)
+        if unassigned:
+            blockers.append(f"Live KCs in no schema: {', '.join(unassigned[:5])}")
+
+        edge_rows = self.conn.execute(
+            "SELECT source_kc_id, target_kc_id FROM staged_edges "
+            "WHERE session_id = ? AND status = 'confirmed'",
+            (session_id,),
+        ).fetchall()
+        dangling = [
+            f"{r['source_kc_id']}->{r['target_kc_id']}" for r in edge_rows
+            if r["source_kc_id"] not in live_ids or r["target_kc_id"] not in live_ids
+        ]
+        if dangling:
+            blockers.append(f"Confirmed edges touching stale/missing KCs: {', '.join(dangling[:5])}")
+        n_proposed_edges = self.conn.execute(
+            "SELECT COUNT(*) FROM staged_edges WHERE session_id = ? AND status = 'proposed'",
+            (session_id,),
+        ).fetchone()[0]
+        if n_proposed_edges:
+            warnings.append(f"{n_proposed_edges} proposed edges will NOT be committed (only confirmed edges are)")
+
+        # ── Structural validation of the would-be frame ──
+        graph = nx.DiGraph()
+        graph.add_nodes_from(id_map.values())
+        graph.add_edges_from(
+            (id_map[r["source_kc_id"]], id_map[r["target_kc_id"]])
+            for r in edge_rows
+            if r["source_kc_id"] in id_map and r["target_kc_id"] in id_map
+        )
+        acyclic = nx.is_directed_acyclic_graph(graph)
+        connected = bool(graph.nodes) and nx.is_weakly_connected(graph)
+
+        children: dict[str, list[str]] = {}
+        for r in schema_rows:
+            if r["status"] == "confirmed" and r["parent_schema_id"]:
+                children.setdefault(r["parent_schema_id"], []).append(r["id"])
+        direct: dict[str, set[str]] = {}
+        for schema_id, kc_id in memberships:
+            direct.setdefault(schema_id, set()).add(id_map.get(kc_id, kc_id))
+
+        def _atoms(schema_id: str) -> set[str]:
+            out = set(direct.get(schema_id, set()))
+            for child in children.get(schema_id, []):
+                out |= _atoms(child)
+            return out
+
+        atom_sets = {sid: _atoms(sid) for sid in confirmed_schema_ids}
+        convexity_violations = {}
+        if acyclic:  # convexity is only meaningful on a DAG
+            for sid, atoms in atom_sets.items():
+                result = check_convexity(atoms, graph)
+                if result["status"] != "valid":
+                    convexity_violations[sid] = result["missing_nodes"]
+        laminarity_violations = []
+        sids = sorted(atom_sets)
+        for i, a in enumerate(sids):
+            for b in sids[i + 1:]:
+                sa, sb = atom_sets[a], atom_sets[b]
+                if (sa & sb) and not (sa <= sb or sb <= sa):
+                    laminarity_violations.append(f"{a} / {b}")
+
+        validation = {
+            "valid": acyclic and connected and not convexity_violations and not laminarity_violations,
+            "checks": {
+                "acyclic": acyclic,
+                "connected": connected,
+                "schema_convexity": not convexity_violations,
+                "laminarity": not laminarity_violations,
+            },
+            "convexity_violations": convexity_violations,
+            "laminarity_violations": laminarity_violations,
+        }
+
+        return {
+            "session_id": session_id,
+            "frame_id": frame_id,
+            "counts": {
+                "kcs": len(id_map),
+                "edges": len(edge_rows) - len(dangling),
+                "schemas": len(confirmed_schema_ids),
+                "memberships": len(memberships),
+                "proposed_edges_excluded": n_proposed_edges,
+            },
+            "id_map_sample": dict(sorted(id_map.items())[:5]),
+            "blockers": blockers,
+            "warnings": warnings,
+            "validation": validation,
+            "ready": not blockers and validation["valid"],
+        }
+
+    def commit_session(
+        self,
+        session_id: str,
+        frame_id: str,
+        frame_name: str,
+        frame_description: str | None,
+        id_prefix_from: str,
+        id_prefix_to: str,
+    ) -> dict | None:
+        """Commit an approved staging session to the production tables.
+
+        Creates a frame, its schemas, KCs (with kc_type and provenance
+        annotations plus language-demand links), memberships, and prerequisite
+        edges — all in a single transaction. Refuses (committed=False, with the
+        precommit report) if there are blockers or validation fails. The
+        staging rows are kept as an audit trail; the session becomes 'committed'.
+
+        The caller is responsible for refreshing the in-memory GraphStore.
+        """
+        report = self.precommit_report(session_id, frame_id, id_prefix_from, id_prefix_to)
+        if report is None:
+            return None
+        if not report["ready"]:
+            return {**report, "committed": False}
+
+        def _new_id(staged_id: str) -> str:
+            return id_prefix_to + staged_id[len(id_prefix_from):]
+
+        now = _now()
+        try:
+            self.conn.execute(
+                "INSERT INTO frames (id, name, description, frame_type, is_reference, created_at, updated_at) "
+                "VALUES (?, ?, ?, 'internal', 0, ?, ?)",
+                (frame_id, frame_name, frame_description, now, now),
+            )
+            for r in self.conn.execute(
+                "SELECT id, name, description, parent_schema_id FROM staged_schemas "
+                "WHERE session_id = ? AND status = 'confirmed' ORDER BY id",
+                (session_id,),
+            ).fetchall():
+                self.conn.execute(
+                    "INSERT INTO schemas (id, frame_id, name, description, parent_schema_id, created_at, updated_at) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    (r["id"], frame_id, r["name"], r["description"], r["parent_schema_id"], now, now),
+                )
+
+            kc_rows = self.conn.execute(
+                "SELECT id, short_description, long_description, kc_type, language_demands "
+                "FROM staged_kcs WHERE session_id = ? AND stage_status != 'stale' ORDER BY id",
+                (session_id,),
+            ).fetchall()
+            for r in kc_rows:
+                new_id = _new_id(r["id"])
+                self.conn.execute(
+                    "INSERT INTO knowledge_components (id, short_description, long_description, metadata_status, created_at, updated_at) "
+                    "VALUES (?, ?, ?, 'authored', ?, ?)",
+                    (new_id, r["short_description"], r["long_description"], now, now),
+                )
+                if r["kc_type"]:
+                    self.conn.execute(
+                        "INSERT INTO annotations (entity_type, entity_id, annotation_type, content, author, created_at) "
+                        "VALUES ('kc', ?, 'kc_type', ?, 'staging-commit', ?)",
+                        (new_id, r["kc_type"], now),
+                    )
+                self.conn.execute(
+                    "INSERT INTO annotations (entity_type, entity_id, annotation_type, content, author, created_at) "
+                    "VALUES ('kc', ?, 'provenance', ?, 'staging-commit', ?)",
+                    (new_id, f"Committed from staging session {session_id} (staged id {r['id']})", now),
+                )
+                for label in _parse_json_list(r["language_demands"]) or []:
+                    demand = self.conn.execute(
+                        "SELECT id FROM language_demands WHERE label = ?", (label,)
+                    ).fetchone()
+                    if demand:
+                        demand_id = demand["id"]
+                    else:
+                        demand_id = self.conn.execute(
+                            "INSERT INTO language_demands (label) VALUES (?)", (label,)
+                        ).lastrowid
+                    self.conn.execute(
+                        "INSERT OR IGNORE INTO kc_language_demands (kc_id, language_demand_id, is_computed) "
+                        "VALUES (?, ?, 0)",
+                        (new_id, demand_id),
+                    )
+
+            live_ids = {r["id"] for r in kc_rows}
+            for r in self.conn.execute(
+                "SELECT sk.schema_id, sk.kc_id FROM staged_schema_kcs sk "
+                "JOIN staged_schemas s ON s.id = sk.schema_id "
+                "WHERE s.session_id = ? AND s.status = 'confirmed'",
+                (session_id,),
+            ).fetchall():
+                if r["kc_id"] in live_ids:
+                    self.conn.execute(
+                        "INSERT INTO schema_kcs (frame_id, schema_id, kc_id) VALUES (?, ?, ?)",
+                        (frame_id, r["schema_id"], _new_id(r["kc_id"])),
+                    )
+
+            for r in self.conn.execute(
+                "SELECT source_kc_id, target_kc_id FROM staged_edges "
+                "WHERE session_id = ? AND status = 'confirmed'",
+                (session_id,),
+            ).fetchall():
+                self.conn.execute(
+                    "INSERT INTO prerequisite_edges (source_kc_id, target_kc_id, created_at) VALUES (?, ?, ?)",
+                    (_new_id(r["source_kc_id"]), _new_id(r["target_kc_id"]), now),
+                )
+
+            self.conn.execute(
+                "UPDATE staging_sessions SET status = 'committed', updated_at = ? WHERE id = ?",
+                (now, session_id),
+            )
+            self.conn.commit()
+        except Exception:
+            self.conn.rollback()
+            raise
+
+        return {
+            **report,
+            "committed": True,
+            "frame_name": frame_name,
+            "committed_at": now,
         }
 
     # ═══════════════════════════════════════════════════════

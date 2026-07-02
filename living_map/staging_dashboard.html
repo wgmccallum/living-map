@@ -282,6 +282,7 @@
       <span id="session-title" style="font-size:18px; font-weight:600; margin-left:12px;"></span>
       <button class="btn btn-outline btn-sm" onclick="renameSession(currentSessionId)" style="margin-left:8px;" title="Rename this session">Rename</button>
       <span id="session-status-badge" style="margin-left:8px;"></span>
+      <button class="btn btn-sm btn-success hidden" onclick="openCommitModal()" id="btn-commit" style="float:right;" title="Promote this session's approved KCs, edges, and schemas into the Knowledge Map as a new frame">Commit to Knowledge Map…</button>
     </div>
 
     <!-- AI Status Banner -->
@@ -852,6 +853,8 @@ async function refreshSession() {
   const s = await api('GET', `/api/staging/${currentSessionId}`);
   document.getElementById('session-title').textContent = `${s.topic_name} (${s.id})`;
   document.getElementById('session-status-badge').innerHTML = badge(s.status);
+  document.getElementById('btn-commit').classList.toggle('hidden',
+    s.status === 'committed' || s.status === 'abandoned');
 
   const stats = s.statistics || {};
   const byStage = stats.by_stage || {};
@@ -3878,6 +3881,137 @@ document.addEventListener('keydown', function(e) {
     }
   }
 });
+
+// ── Commit to Knowledge Map (Step 7) ──
+
+async function openCommitModal() {
+  // Derive sensible defaults: frame id from the session id (drop trailing date),
+  // ID prefix from the first live staged KC.
+  const base = currentSessionId.replace(/-\d{4}-\d{2}(-\d{2})?$/, '');
+  let prefixFrom = 'STAGE-';
+  try {
+    const kcs = await api('GET', `/api/staging/${currentSessionId}/kcs`);
+    const live = kcs.find(k => k.stage_status !== 'stale');
+    const m = live && live.id.match(/^(STAGE-[A-Za-z0-9]+-)/);
+    if (m) prefixFrom = m[1];
+  } catch (e) { /* keep default */ }
+
+  const overlay = document.createElement('div');
+  overlay.id = 'commit-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;display:flex;align-items:center;justify-content:center;';
+  overlay.innerHTML = `
+    <div style="background:white;border-radius:12px;max-width:680px;width:95%;max-height:88vh;overflow-y:auto;padding:24px;box-shadow:0 8px 32px rgba(0,0,0,0.2);">
+      <h3 style="margin:0 0 6px 0;">Commit to Knowledge Map</h3>
+      <p style="color:#666;margin:0 0 16px 0;font-size:13px;">Promote this session's approved KCs, edges, and schemas into the production map as a new frame. Run the pre-commit check first; committing is enabled only when it passes.</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+        <label style="font-size:12px;color:#666;">Frame ID
+          <input id="commit-frame-id" value="${escapeHtml(base)}-v1" style="width:100%;padding:6px;border:1px solid #ddd;border-radius:6px;font-family:monospace;">
+        </label>
+        <label style="font-size:12px;color:#666;">Frame name
+          <input id="commit-frame-name" placeholder="e.g. Linear Functions v1" style="width:100%;padding:6px;border:1px solid #ddd;border-radius:6px;">
+        </label>
+        <label style="font-size:12px;color:#666;">KC id prefix to replace
+          <input id="commit-prefix-from" value="${escapeHtml(prefixFrom)}" style="width:100%;padding:6px;border:1px solid #ddd;border-radius:6px;font-family:monospace;">
+        </label>
+        <label style="font-size:12px;color:#666;">Replacement prefix
+          <input id="commit-prefix-to" placeholder="e.g. LF-" style="width:100%;padding:6px;border:1px solid #ddd;border-radius:6px;font-family:monospace;">
+        </label>
+      </div>
+      <label style="font-size:12px;color:#666;display:block;margin-bottom:14px;">Frame description (optional)
+        <input id="commit-frame-desc" style="width:100%;padding:6px;border:1px solid #ddd;border-radius:6px;">
+      </label>
+      <div style="display:flex;gap:8px;margin-bottom:14px;">
+        <button class="btn btn-sm btn-primary" onclick="runPrecommit()">Run pre-commit check</button>
+        <button class="btn btn-sm btn-success" id="commit-go-btn" onclick="runCommit()" disabled>Commit</button>
+        <button class="btn btn-sm" onclick="document.getElementById('commit-overlay').remove()" style="margin-left:auto;">Cancel</button>
+      </div>
+      <div id="commit-report"></div>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
+function commitParams() {
+  return {
+    frame_id: document.getElementById('commit-frame-id').value.trim(),
+    frame_name: document.getElementById('commit-frame-name').value.trim() || null,
+    frame_description: document.getElementById('commit-frame-desc').value.trim() || null,
+    id_prefix_from: document.getElementById('commit-prefix-from').value,
+    id_prefix_to: document.getElementById('commit-prefix-to').value,
+  };
+}
+
+function renderCommitReport(r) {
+  const check = ok => ok ? '<span style="color:var(--success);">✓</span>' : '<span style="color:var(--danger);">✗</span>';
+  const rows = Object.entries(r.validation.checks)
+    .map(([k, v]) => `<span style="margin-right:14px;white-space:nowrap;">${check(v)} ${escapeHtml(k)}</span>`).join('');
+  const idSample = Object.entries(r.id_map_sample)
+    .map(([a, b]) => `<div style="font-family:monospace;font-size:12px;">${escapeHtml(a)} → ${escapeHtml(b)}</div>`).join('');
+  const blockers = r.blockers.length
+    ? `<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:10px;margin-top:10px;">
+         <strong style="color:var(--danger);font-size:13px;">Blockers</strong>
+         ${r.blockers.map(b => `<div style="font-size:13px;color:#991b1b;">• ${escapeHtml(b)}</div>`).join('')}
+       </div>` : '';
+  const warnings = r.warnings.length
+    ? `<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px;margin-top:10px;">
+         ${r.warnings.map(w => `<div style="font-size:13px;color:#92400e;">• ${escapeHtml(w)}</div>`).join('')}
+       </div>` : '';
+  const viol = Object.entries(r.validation.convexity_violations || {})
+    .map(([s, ns]) => `<div style="font-size:12px;color:#991b1b;">convexity: ${escapeHtml(s)} misses ${escapeHtml(ns.join(', '))}</div>`).join('')
+    + (r.validation.laminarity_violations || []).map(l => `<div style="font-size:12px;color:#991b1b;">laminarity: ${escapeHtml(l)}</div>`).join('');
+  return `
+    <div style="border:1px solid #e5e7eb;border-radius:8px;padding:12px;">
+      <div style="display:flex;gap:16px;font-size:13px;margin-bottom:8px;">
+        <span><strong>${r.counts.kcs}</strong> KCs</span>
+        <span><strong>${r.counts.edges}</strong> edges</span>
+        <span><strong>${r.counts.schemas}</strong> schemas</span>
+        <span><strong>${r.counts.memberships}</strong> memberships</span>
+      </div>
+      <div style="font-size:13px;margin-bottom:8px;">${rows}</div>
+      ${idSample}
+      ${viol}
+      ${blockers}
+      ${warnings}
+      <div style="margin-top:10px;font-weight:600;font-size:13px;color:${r.ready ? 'var(--success)' : 'var(--danger)'};">
+        ${r.ready ? 'Ready to commit.' : 'Not ready — resolve the issues above.'}
+      </div>
+    </div>`;
+}
+
+async function runPrecommit() {
+  const params = commitParams();
+  if (!params.frame_id) { toast('Frame ID is required.', 'error'); return; }
+  try {
+    const r = await api('POST', `/api/staging/${currentSessionId}/precommit`, params);
+    document.getElementById('commit-report').innerHTML = renderCommitReport(r);
+    document.getElementById('commit-go-btn').disabled = !r.ready;
+  } catch (e) { toast(`Pre-commit check failed: ${e.message}`, 'error'); }
+}
+
+async function runCommit() {
+  const params = commitParams();
+  if (!params.frame_name) { toast('Frame name is required to commit.', 'error'); return; }
+  if (!confirm(`Commit this session to the Knowledge Map as frame "${params.frame_id}"?\n\nThis creates permanent KCs, edges, and schemas. The staging session will be marked committed.`)) return;
+  try {
+    const r = await api('POST', `/api/staging/${currentSessionId}/commit`, params);
+    if (!r.committed) {
+      document.getElementById('commit-report').innerHTML = renderCommitReport(r);
+      document.getElementById('commit-go-btn').disabled = true;
+      toast('Commit refused — see report.', 'error');
+      return;
+    }
+    const fv = r.frame_validation;
+    document.getElementById('commit-report').innerHTML = `
+      <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:14px;">
+        <strong style="color:var(--success);">Committed.</strong>
+        <div style="font-size:13px;margin-top:6px;">Frame <span style="font-family:monospace;">${escapeHtml(r.frame_id)}</span> created with ${r.counts.kcs} KCs, ${r.counts.edges} edges, ${r.counts.schemas} schemas.</div>
+        <div style="font-size:13px;margin-top:4px;">Post-commit frame validation: <strong>${fv && fv.valid ? 'valid ✓' : 'INVALID — inspect in main app'}</strong></div>
+        <div style="margin-top:10px;"><a href="/" target="_blank" class="btn btn-sm btn-primary">Open Knowledge Map</a></div>
+      </div>`;
+    document.getElementById('commit-go-btn').disabled = true;
+    toast('Session committed to the Knowledge Map.');
+    refreshSession();
+  } catch (e) { toast(`Commit failed: ${e.message}`, 'error'); }
+}
 </script>
 
 </body>

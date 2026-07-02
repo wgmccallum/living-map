@@ -265,7 +265,7 @@ export const DAGView = forwardRef<DAGViewHandle, DAGViewProps>(function DAGView(
           elements.push({
             data: {
               id: `schema-${schema.id}`,
-              label: `${schema.id}: ${schema.name}`,
+              label: schema.name,
               isSchema: true,
             },
           });
@@ -338,7 +338,7 @@ export const DAGView = forwardRef<DAGViewHandle, DAGViewProps>(function DAGView(
             elements.push({
               data: {
                 id: `schema-${schema.id}`,
-                label: `${schema.id}: ${schema.name}`,
+                label: schema.name,
                 isSchema: true,
                 parent: schemaParent,
               },

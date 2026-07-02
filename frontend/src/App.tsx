@@ -383,25 +383,34 @@ export function App() {
                   ? "Reference frames cannot be deleted"
                   : frames.length <= 1
                     ? "Cannot delete the only remaining frame"
-                    : "Delete this frame and all its schemas and edges"
+                    : "Delete this frame, its schemas, and the KCs that belong only to it (with their edges)"
               }
               onClick={async () => {
+                const otherKCs = new Set(
+                  frames
+                    .filter((f) => f.id !== activeFrame.id)
+                    .flatMap((f) => f.schemas.flatMap((s) => s.kc_ids)),
+                );
+                const mine = new Set(activeFrame.schemas.flatMap((s) => s.kc_ids));
+                const exclusive = [...mine].filter((id) => !otherKCs.has(id)).length;
+                const shared = mine.size - exclusive;
                 const confirmed = window.confirm(
                   `Delete frame "${activeFrame.name}"?\n\n` +
-                    `This will also delete all schemas and prerequisite edges that belong to this frame. ` +
-                    `KCs themselves are shared across frames and will NOT be deleted.\n\n` +
-                    `This action cannot be undone.`,
+                    `This permanently deletes its ${activeFrame.schemas.length} schemas and the ` +
+                    `${exclusive} KCs that belong only to this frame, together with their edges and annotations.` +
+                    (shared > 0 ? `\n${shared} KCs shared with other frames are kept.` : ``) +
+                    `\n\nThis action cannot be undone.`,
                 );
                 if (!confirmed) return;
                 try {
                   const deletedId = activeFrame.id;
                   await api.deleteFrame(deletedId);
                   const fresh = await api.listFrames();
-                  setFrames(fresh);
                   const next = fresh.find((f) => f.is_reference) || fresh[0] || null;
                   setActiveFrame(next);
                   handleResetQuotient();
                   setSelectedSchemaId(null);
+                  await refreshData();
                   if (next) api.validateFrame(next.id).then(setValidation);
                 } catch (e) {
                   const msg = e instanceof Error ? e.message : String(e);
@@ -552,7 +561,7 @@ export function App() {
                   walk(null, 0);
                   return ordered.map(({ schema: s, depth }) => (
                     <option key={s.id} value={s.id}>
-                      {"\u00A0\u00A0".repeat(depth)}{s.id}: {s.name}
+                      {"\u00A0\u00A0".repeat(depth)}{s.name}
                     </option>
                   ));
                 })()}
@@ -617,7 +626,7 @@ export function App() {
                       checked={pendingSchemaIds.has(s.id)}
                       onChange={() => togglePendingSchema(s.id)}
                     />
-                    <span title={s.name}>{s.id}: {s.name}</span>
+                    <span title={s.id}>{s.name}</span>
                   </label>
                 ))}
             </div>
@@ -665,7 +674,7 @@ export function App() {
                     style={{ cursor: "pointer" }}
                   >
                     <span className="empty-schema-dot" />
-                    <span title={s.name}>{s.id}: {s.name}</span>
+                    <span title={s.id}>{s.name}</span>
                   </div>
                 ))}
               </div>
@@ -861,7 +870,7 @@ export function App() {
                 >
                   <option value="">Select a schema...</option>
                   {activeFrame?.schemas.map((s) => (
-                    <option key={s.id} value={s.id}>{s.id}: {s.name}</option>
+                    <option key={s.id} value={s.id}>{s.name}</option>
                   ))}
                 </select>
                 {newKCId && (
@@ -939,7 +948,7 @@ export function App() {
                 >
                   <option value="">— none (top-level) —</option>
                   {activeFrame.schemas.map((s) => (
-                    <option key={s.id} value={s.id}>{s.id}: {s.name}</option>
+                    <option key={s.id} value={s.id}>{s.name}</option>
                   ))}
                 </select>
                 <label className="form-label">

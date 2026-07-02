@@ -52,6 +52,7 @@ from .models import (
     StagedSchemaCreate,
     StagedSchemaUpdate,
     StagedSchemaKCsAdd,
+    StagingCommitRequest,
     AIBatchRequest,
     ConversationMessage,
     ConversationResponse,
@@ -523,10 +524,15 @@ def update_frame(frame_id: str, update: FrameUpdate):
     return result
 
 
-@app.delete("/api/frames/{frame_id}", status_code=204)
+@app.delete("/api/frames/{frame_id}")
 def delete_frame(frame_id: str):
-    if not get_dal().delete_frame(frame_id):
+    try:
+        result = get_dal().delete_frame(frame_id)
+    except ValueError as e:
+        raise HTTPException(409, str(e))
+    if result is None:
         raise HTTPException(404, f"Frame {frame_id} not found")
+    return result
 
 
 # ── Schemas ──
@@ -1100,6 +1106,38 @@ def remove_kc_from_staged_schema(session_id: str, schema_id: str, kc_id: str):
 @app.post("/api/staging/{session_id}/schemas/validate")
 def validate_staged_schemas(session_id: str):
     return get_staging_dal().validate_staged_schemas(session_id)
+
+
+# ── Commit Pipeline (Step 7) ──
+
+@app.post("/api/staging/{session_id}/precommit")
+def precommit_staging_session(session_id: str, req: StagingCommitRequest):
+    """Dry-run: report what a commit would do, plus blockers and validation."""
+    report = get_staging_dal().precommit_report(
+        session_id, req.frame_id, req.id_prefix_from, req.id_prefix_to
+    )
+    if report is None:
+        raise HTTPException(404, f"Staging session {session_id} not found")
+    return report
+
+
+@app.post("/api/staging/{session_id}/commit")
+def commit_staging_session(session_id: str, req: StagingCommitRequest):
+    """Commit an approved staging session to the production tables as a new frame."""
+    if not req.frame_name:
+        raise HTTPException(422, "frame_name is required to commit")
+    result = get_staging_dal().commit_session(
+        session_id, req.frame_id, req.frame_name, req.frame_description,
+        req.id_prefix_from, req.id_prefix_to,
+    )
+    if result is None:
+        raise HTTPException(404, f"Staging session {session_id} not found")
+    if result.get("committed"):
+        get_graphs().reload()
+        result["frame_validation"] = validate_frame(
+            req.frame_id, get_dal().conn, get_graphs().knowledge_graph
+        )
+    return result
 
 
 # ── Document Ingest ──

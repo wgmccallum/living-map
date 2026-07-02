@@ -556,13 +556,83 @@ class DAL:
         self.conn.commit()
         return self.get_frame(frame_id)
 
-    def delete_frame(self, frame_id: str) -> bool:
-        existing = self.conn.execute("SELECT id FROM frames WHERE id = ?", (frame_id,)).fetchone()
+    def delete_frame(self, frame_id: str) -> dict | None:
+        """Delete a frame and everything that exists only because of it.
+
+        KCs are global, so a KC is deleted only if this frame is the sole frame
+        it belongs to ("exclusive"); shared KCs merely lose this frame's
+        memberships (via cascade). Deleting exclusive KCs cascades their
+        prerequisite edges, language demands, and math contexts; their
+        annotations and alignment mappings (no FK) are removed explicitly.
+
+        Raises ValueError for reference frames. Returns None if the frame
+        doesn't exist, else a report of what was deleted.
+        """
+        existing = self.conn.execute(
+            "SELECT id, is_reference FROM frames WHERE id = ?", (frame_id,)
+        ).fetchone()
         if not existing:
-            return False
-        self.conn.execute("DELETE FROM frames WHERE id = ?", (frame_id,))
-        self.conn.commit()
-        return True
+            return None
+        if existing["is_reference"]:
+            raise ValueError("Reference frames cannot be deleted")
+
+        exclusive = [
+            r["kc_id"] for r in self.conn.execute(
+                "SELECT DISTINCT kc_id FROM schema_kcs WHERE frame_id = ? "
+                "AND kc_id NOT IN (SELECT kc_id FROM schema_kcs WHERE frame_id != ?)",
+                (frame_id, frame_id),
+            )
+        ]
+        n_schemas = self.conn.execute(
+            "SELECT COUNT(*) AS c FROM schemas WHERE frame_id = ?", (frame_id,)
+        ).fetchone()["c"]
+        placeholders = ",".join("?" * len(exclusive))
+        n_edges = 0
+        if exclusive:
+            n_edges = self.conn.execute(
+                f"SELECT COUNT(*) AS c FROM prerequisite_edges "
+                f"WHERE source_kc_id IN ({placeholders}) OR target_kc_id IN ({placeholders})",
+                exclusive + exclusive,
+            ).fetchone()["c"]
+
+        try:
+            if exclusive:
+                self.conn.execute(
+                    f"DELETE FROM annotations WHERE entity_type = 'kc' AND entity_id IN ({placeholders})",
+                    exclusive,
+                )
+                self.conn.execute(
+                    f"DELETE FROM alignment_mappings WHERE target_type = 'kc' AND target_id IN ({placeholders})",
+                    exclusive,
+                )
+                self.conn.execute(
+                    f"DELETE FROM knowledge_components WHERE id IN ({placeholders})",
+                    exclusive,
+                )
+            self.conn.execute(
+                "DELETE FROM annotations WHERE entity_type = 'schema' "
+                "AND entity_id IN (SELECT id FROM schemas WHERE frame_id = ?)",
+                (frame_id,),
+            )
+            self.conn.execute(
+                "DELETE FROM alignment_mappings WHERE target_type = 'schema' "
+                "AND target_id IN (SELECT id FROM schemas WHERE frame_id = ?)",
+                (frame_id,),
+            )
+            self.conn.execute("DELETE FROM frames WHERE id = ?", (frame_id,))
+            self.conn.commit()
+        except Exception:
+            self.conn.rollback()
+            raise
+
+        for kc_id in exclusive:
+            self.graphs.remove_kc(kc_id)
+        return {
+            "frame_id": frame_id,
+            "kcs_deleted": len(exclusive),
+            "edges_deleted": n_edges,
+            "schemas_deleted": n_schemas,
+        }
 
     # ── Schemas ──
     # Schemas are identified by (frame_id, id). Schema IDs are unique per frame,
