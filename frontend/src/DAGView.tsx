@@ -573,7 +573,14 @@ export const DAGView = forwardRef<DAGViewHandle, DAGViewProps>(function DAGView(
         (e) => e.source_kc_id === sourceId && e.target_kc_id === targetId
       );
 
-      et.innerHTML = `<span class="edge-tooltip-label">${sourceId} → ${targetId}</span>`;
+      const sourceLabel = cy.getElementById(sourceId).data("label") || sourceId;
+      const targetLabel = cy.getElementById(targetId).data("label") || targetId;
+      et.innerHTML = "";
+      const labelSpan = document.createElement("span");
+      labelSpan.className = "edge-tooltip-label";
+      labelSpan.textContent = `${sourceLabel} → ${targetLabel}`;
+      labelSpan.title = `${sourceId} → ${targetId}`;
+      et.appendChild(labelSpan);
       if (matchingEdge && onDeleteEdgeRef.current) {
         const deleteBtn = document.createElement("button");
         deleteBtn.className = "edge-tooltip-delete";

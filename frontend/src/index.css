@@ -264,11 +264,12 @@ body {
   z-index: 100;
   align-items: center;
   gap: 8px;
-  white-space: nowrap;
+  max-width: 440px;
 }
 
 .edge-tooltip-label {
   color: #ccc;
+  white-space: normal;
 }
 
 .edge-tooltip-delete {
