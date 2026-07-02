@@ -97,7 +97,7 @@
   .tab:hover { color: var(--text); }
   .tab.active { color: var(--primary); border-bottom-color: var(--primary); font-weight: 500; }
 
-  .hidden { display: none; }
+  .hidden { display: none !important; }
 
   /* Toast */
   .toast { position: fixed; bottom: 20px; right: 20px; padding: 12px 20px; border-radius: var(--radius); color: #fff; font-size: 14px; z-index: 1000; animation: fadeIn .2s; }
@@ -122,11 +122,11 @@
   /* Graph tab */
   .graph-layout { display: flex; gap: 12px; }
   .graph-main { flex: 1; min-width: 0; position: relative; }
-  #cy-container { width: 100%; height: 600px; border: 1px solid var(--border); border-radius: var(--radius); background: #fafbfc; }
+  #cy-container { width: 100%; height: 80vh; min-height: 600px; border: 1px solid var(--border); border-radius: var(--radius); background: #fafbfc; }
   .graph-toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
   .graph-legend { display: flex; gap: 12px; align-items: center; font-size: 12px; color: var(--text-muted); margin-left: auto; }
   .graph-legend .swatch { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 4px; vertical-align: middle; }
-  #graph-info-panel { width: 280px; flex-shrink: 0; padding: 14px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg); font-size: 13px; align-self: flex-start; max-height: 600px; overflow-y: auto; }
+  #graph-info-panel { width: 280px; flex-shrink: 0; padding: 14px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg); font-size: 13px; align-self: flex-start; max-height: 80vh; overflow-y: auto; }
   #graph-info-panel .info-title { font-weight: 600; margin-bottom: 6px; }
 
   /* Conversation Side Panel */
@@ -196,6 +196,15 @@
 </head>
 <body>
 
+<div id="sandbox-banner" class="hidden" style="background:#7c3aed; color:#fff; padding:8px 16px; display:flex; align-items:center; gap:12px; font-size:13px; position:sticky; top:0; z-index:50;">
+  <strong>🧪 Sandbox:</strong>
+  <span id="sandbox-banner-name">—</span>
+  <span style="opacity:0.85;">— changes here are isolated from production.</span>
+  <span style="flex:1"></span>
+  <button class="btn btn-sm" style="background:rgba(255,255,255,0.2); color:#fff; border:none;" onclick="copySandboxLink()">Copy link</button>
+  <button class="btn btn-sm" style="background:#fff; color:#7c3aed; border:none;" onclick="exitSandbox()">Exit sandbox</button>
+</div>
+
 <div class="header">
   <h1>Living Map — Staging Dashboard</h1>
   <span class="subtitle">Moderated Bulk Add Pipeline</span>
@@ -206,6 +215,31 @@
 <div class="container">
   <!-- Session List / Create -->
   <div id="sessions-view">
+    <div class="panel" style="border-left:3px solid #7c3aed;">
+      <div class="panel-header">
+        <h2>Sandboxes</h2>
+        <button class="btn btn-primary btn-sm" onclick="showCreateSandbox()">+ New Sandbox</button>
+      </div>
+      <div class="panel-body">
+        <p class="meta" style="margin-bottom:10px;">A sandbox is a full, isolated copy of the current map. Share its link so a collaborator can experiment without affecting production.</p>
+        <div id="create-sandbox-form" class="hidden" style="margin-bottom:16px; padding:14px; background:var(--bg); border-radius:var(--radius);">
+          <div class="form-row">
+            <div class="form-group" style="flex:1">
+              <label>Sandbox name</label>
+              <input type="text" id="new-sandbox-name" placeholder="e.g. Alice — linear functions trial">
+            </div>
+            <button class="btn btn-primary" onclick="createSandbox()">Create</button>
+            <button class="btn btn-outline" onclick="hideCreateSandbox()">Cancel</button>
+          </div>
+        </div>
+        <table id="sandboxes-table">
+          <thead><tr><th>Name</th><th>Created</th><th>Source</th><th>Link</th><th>Actions</th></tr></thead>
+          <tbody id="sandboxes-tbody"></tbody>
+        </table>
+        <p id="no-sandboxes" class="hidden" style="text-align:center; color:var(--text-muted); padding:16px;">No sandboxes yet.</p>
+      </div>
+    </div>
+
     <div class="panel">
       <div class="panel-header">
         <h2>Staging Sessions</h2>
@@ -492,6 +526,9 @@
               <option value="formulated">Formulated+</option>
               <option value="edges_confirmed">Edges Confirmed+</option>
             </select>
+            <select id="graph-schema-filter" onchange="loadGraph()" style="font-size:13px;" title="Show only the KCs in one schema (a parent schema includes all its descendants)">
+              <option value="">All Schemas</option>
+            </select>
             <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer;">
               <input type="checkbox" id="graph-schema-toggle" onchange="loadGraph()">
               Show Schemas
@@ -527,12 +564,34 @@ const API = '';  // Same origin
 let currentSessionId = null;
 let correctnessCheckDone = false;
 
+// ── Sandbox capability state ──
+// On load, a ?sandbox=<id> query param "enters" that sandbox; we persist the id in
+// sessionStorage and send it as X-Sandbox-Id on every API call, so all reads/writes
+// hit that isolated DB copy. No param + nothing stored → the base (production) map.
+let sandboxId = null;
+let sandboxName = null;
+(function initSandbox() {
+  const param = new URLSearchParams(location.search).get('sandbox');
+  if (param) {
+    sessionStorage.setItem('sandboxId', param);
+    // Strip the param from the URL bar (keep it only in sessionStorage).
+    const url = new URL(location.href);
+    url.searchParams.delete('sandbox');
+    history.replaceState({}, '', url);
+  }
+  sandboxId = sessionStorage.getItem('sandboxId');
+})();
+
 // ═══════════════════════════════════════════════════════
 // API helpers
 // ═══════════════════════════════════════════════════════
 
 async function api(method, path, body = null) {
   const opts = { method, headers: {} };
+  // Route to the active sandbox (if any). Management routes stay on the base.
+  if (sandboxId && !path.startsWith('/api/sandboxes')) {
+    opts.headers['X-Sandbox-Id'] = sandboxId;
+  }
   if (body && !(body instanceof FormData)) {
     opts.headers['Content-Type'] = 'application/json';
     opts.body = JSON.stringify(body);
@@ -565,6 +624,108 @@ function toast(msg, type = 'success') {
 
 function badge(status) {
   return `<span class="badge badge-${status}">${status.replace('_', ' ')}</span>`;
+}
+
+// ═══════════════════════════════════════════════════════
+// Sandboxes (capability-URL isolated DB copies)
+// ═══════════════════════════════════════════════════════
+
+function sandboxLink(id) {
+  return `${location.origin}/staging?sandbox=${id}`;
+}
+
+function showCreateSandbox() {
+  document.getElementById('create-sandbox-form').classList.remove('hidden');
+  document.getElementById('new-sandbox-name').focus();
+}
+function hideCreateSandbox() {
+  document.getElementById('create-sandbox-form').classList.add('hidden');
+  document.getElementById('new-sandbox-name').value = '';
+}
+
+async function createSandbox() {
+  const name = document.getElementById('new-sandbox-name').value.trim();
+  if (!name) { toast('Give the sandbox a name', 'error'); return; }
+  try {
+    const sb = await api('POST', '/api/sandboxes', { name });
+    hideCreateSandbox();
+    toast(`Sandbox "${sb.name}" created`);
+    loadSandboxes();
+    // Offer the shareable link immediately.
+    const link = sandboxLink(sb.id);
+    try { await navigator.clipboard.writeText(link); toast('Share link copied to clipboard'); }
+    catch { prompt('Share this link with your collaborator:', link); }
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function loadSandboxes() {
+  try {
+    const list = await api('GET', '/api/sandboxes');
+    const tbody = document.getElementById('sandboxes-tbody');
+    const none = document.getElementById('no-sandboxes');
+    if (!list.length) { tbody.innerHTML = ''; none.classList.remove('hidden'); return; }
+    none.classList.add('hidden');
+    tbody.innerHTML = list.map(s => {
+      const created = (s.created_at || '').slice(0, 10);
+      return `<tr${s.id === sandboxId ? ' style="background:#f5f3ff;"' : ''}>
+        <td>${escapeHtml(s.name)}${s.id === sandboxId ? ' <span class="badge" style="background:#ddd6fe;color:#5b21b6;">current</span>' : ''}</td>
+        <td>${created}</td>
+        <td>${escapeHtml(s.source || 'base')}</td>
+        <td><a href="#" onclick="copyLinkFor('${s.id}'); return false;" style="color:var(--primary);">Copy link</a></td>
+        <td>
+          <button class="btn btn-outline btn-sm" onclick="enterSandbox('${s.id}')">Open</button>
+          <button class="btn btn-sm" onclick="deleteSandboxUI('${s.id}','${escapeHtml(s.name)}')" style="color:var(--danger);border-color:var(--danger);background:transparent;margin-left:4px;">Delete</button>
+        </td>
+      </tr>`;
+    }).join('');
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function copyLinkFor(id) {
+  const link = sandboxLink(id);
+  try { await navigator.clipboard.writeText(link); toast('Link copied'); }
+  catch { prompt('Sandbox link:', link); }
+}
+function copySandboxLink() { if (sandboxId) copyLinkFor(sandboxId); }
+
+function enterSandbox(id) {
+  sessionStorage.setItem('sandboxId', id);
+  location.reload();  // re-init cleanly; everything re-scopes to this sandbox
+}
+
+function exitSandbox() {
+  sessionStorage.removeItem('sandboxId');
+  // Drop any session detail view; return to the base sessions list.
+  location.href = '/staging';
+}
+
+async function deleteSandboxUI(id, name) {
+  if (!confirm(`Delete sandbox "${name}"? This permanently removes its data. This cannot be undone.`)) return;
+  try {
+    await api('DELETE', `/api/sandboxes/${id}`);
+    toast('Sandbox deleted');
+    if (id === sandboxId) { exitSandbox(); return; }
+    loadSandboxes();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function refreshSandboxBanner() {
+  const banner = document.getElementById('sandbox-banner');
+  if (!sandboxId) { banner.classList.add('hidden'); return; }
+  // Resolve the sandbox name from the (base) registry.
+  try {
+    const list = await api('GET', '/api/sandboxes');
+    const me = list.find(s => s.id === sandboxId);
+    if (!me) {  // sandbox was deleted out from under us
+      sessionStorage.removeItem('sandboxId'); sandboxId = null;
+      banner.classList.add('hidden');
+      toast('That sandbox no longer exists — returned to the base map.', 'error');
+      return;
+    }
+    sandboxName = me.name;
+    document.getElementById('sandbox-banner-name').textContent = me.name;
+    banner.classList.remove('hidden');
+  } catch { banner.classList.add('hidden'); }
 }
 
 // ═══════════════════════════════════════════════════════
@@ -2714,6 +2875,43 @@ const statusColors = {
 
 const statusRank = { proposed: 0, grain_approved: 1, formulated: 2, edges_confirmed: 3, schema_assigned: 4 };
 
+// Collect the KC ids belonging to a schema, including all descendant schemas
+// (KCs are assigned only to leaf schemas, so a parent's set is the union of its leaves).
+function schemaKcIds(schemaId, schemas) {
+  const byId = {};
+  const childrenOf = {};
+  schemas.forEach(s => {
+    byId[s.id] = s;
+    if (s.parent_schema_id) {
+      (childrenOf[s.parent_schema_id] = childrenOf[s.parent_schema_id] || []).push(s.id);
+    }
+  });
+  const ids = new Set();
+  const stack = [schemaId];
+  while (stack.length) {
+    const cur = stack.pop();
+    const s = byId[cur];
+    if (!s) continue;
+    if (s.kc_ids) s.kc_ids.forEach(id => ids.add(id));
+    (childrenOf[cur] || []).forEach(c => stack.push(c));
+  }
+  return ids;
+}
+
+// Rebuild the schema-filter dropdown options from the session's schemas, preserving the current selection.
+function populateGraphSchemaFilter(schemas) {
+  const sel = document.getElementById('graph-schema-filter');
+  if (!sel) return;
+  const prev = sel.value;
+  const sorted = (schemas || []).slice().sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  const opts = ['<option value="">All Schemas</option>'].concat(
+    sorted.map(s => `<option value="${escapeHtml(s.id)}">${escapeHtml(s.name)}${s.parent_schema_id ? '' : ' (root)'}</option>`)
+  );
+  sel.innerHTML = opts.join('');
+  // Restore prior selection if it still exists; otherwise fall back to All Schemas
+  sel.value = sorted.some(s => s.id === prev) ? prev : '';
+}
+
 async function loadGraph() {
   if (!currentSessionId) return;
   try {
@@ -2731,6 +2929,14 @@ async function loadGraph() {
     if (filter) {
       const minRank = statusRank[filter] || 0;
       activeKCs = activeKCs.filter(kc => (statusRank[kc.stage_status] || 0) >= minRank);
+    }
+
+    // Keep the schema-filter dropdown in sync with the session's schemas, then apply it
+    populateGraphSchemaFilter(schemas);
+    const schemaFilter = document.getElementById('graph-schema-filter').value;
+    if (schemaFilter) {
+      const allowed = schemaKcIds(schemaFilter, schemas);
+      activeKCs = activeKCs.filter(kc => allowed.has(kc.id));
     }
 
     const kcIds = new Set(activeKCs.map(kc => kc.id));
@@ -3391,6 +3597,8 @@ function escapeHtml(text) {
 }
 
 // Init
+refreshSandboxBanner();
+loadSandboxes();
 loadSessions();
 </script>
 

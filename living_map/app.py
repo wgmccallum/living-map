@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import sqlite3
 from contextlib import asynccontextmanager
+from contextvars import ContextVar
 from pathlib import Path
 
-from fastapi import FastAPI, File, HTTPException, Query, UploadFile
+from fastapi import FastAPI, File, HTTPException, Query, Request, UploadFile
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, Response
 
 from .dal import DAL
 from .database import DEFAULT_DB_PATH, init_db
@@ -57,43 +58,97 @@ from .models import (
     ConversationReply,
     ConversationSendRequest,
     LearnerScenarioRequest,
+    SandboxCreate,
+    SandboxResponse,
 )
 from .staging_dal import StagingDAL
+from .sandboxes import SandboxManager
 
-# Module-level singletons set during lifespan
+# Module-level singletons set during lifespan — these are the BASE (production) map.
 _dal: DAL | None = None
 _graphs: GraphStore | None = None
 _staging_dal: StagingDAL | None = None
+_sandbox_manager: SandboxManager | None = None
+
+# Request-scoped sandbox id (set by middleware). When set, the getters below route
+# to that sandbox's isolated DB instead of the base map. Set in async middleware;
+# propagates into sync routes run in the threadpool (anyio copies the context).
+current_sandbox: ContextVar[str | None] = ContextVar("current_sandbox", default=None)
+
+
+def get_sandbox_manager() -> SandboxManager:
+    assert _sandbox_manager is not None
+    return _sandbox_manager
+
+
+def _active_bundle():
+    sid = current_sandbox.get()
+    return get_sandbox_manager().bundle(sid) if sid else None
 
 
 def get_dal() -> DAL:
+    bundle = _active_bundle()
+    if bundle is not None:
+        return bundle.dal
     assert _dal is not None
     return _dal
 
 
 def get_graphs() -> GraphStore:
+    bundle = _active_bundle()
+    if bundle is not None:
+        return bundle.graphs
     assert _graphs is not None
     return _graphs
 
 
 def get_staging_dal() -> StagingDAL:
+    bundle = _active_bundle()
+    if bundle is not None:
+        return bundle.staging_dal
     assert _staging_dal is not None
     return _staging_dal
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global _dal, _graphs, _staging_dal
+    global _dal, _graphs, _staging_dal, _sandbox_manager
     db_path = Path(app.state.db_path) if hasattr(app.state, "db_path") else DEFAULT_DB_PATH
     conn = init_db(db_path)
     _graphs = GraphStore(conn)
     _dal = DAL(conn, _graphs)
     _staging_dal = StagingDAL(conn)
+    sandbox_dir = Path(app.state.sandbox_dir) if hasattr(app.state, "sandbox_dir") else None
+    _sandbox_manager = SandboxManager(base_db_path=db_path, sandbox_dir=sandbox_dir)
     yield
+    _sandbox_manager.close_all()
     conn.close()
 
 
 app = FastAPI(title="Living Map API", version="0.1.0", lifespan=lifespan)
+
+
+@app.middleware("http")
+async def sandbox_context(request: Request, call_next):
+    """Resolve the request's sandbox from the X-Sandbox-Id header (or ?sandbox=).
+
+    Applies only to data routes (/api/*, except the /api/sandboxes management
+    routes). An unknown sandbox id yields 404 rather than silently using the base
+    DB, so edits intended for a sandbox can never land on production by mistake.
+    """
+    path = request.url.path
+    sid = request.headers.get("X-Sandbox-Id") or request.query_params.get("sandbox")
+    scoped = bool(sid) and path.startswith("/api/") and not path.startswith("/api/sandboxes")
+    token = None
+    if scoped:
+        if not get_sandbox_manager().exists(sid):
+            return JSONResponse({"detail": f"Sandbox {sid} not found"}, status_code=404)
+        token = current_sandbox.set(sid)
+    try:
+        return await call_next(request)
+    finally:
+        if token is not None:
+            current_sandbox.reset(token)
 
 
 # ── Knowledge Components ──
@@ -1487,6 +1542,43 @@ def list_session_conversations(session_id: str):
         raise HTTPException(404, f"Staging session {session_id} not found")
     kc_ids = sdal.list_conversations(session_id)
     return {"session_id": session_id, "kc_ids_with_conversations": kc_ids}
+
+
+# ── Sandboxes (capability-URL per-collaborator DB copies) ──
+# These routes always operate on the base/registry, never on a request's sandbox
+# context (the middleware excludes /api/sandboxes from scoping).
+
+
+def _sandbox_response(meta: dict) -> SandboxResponse:
+    return SandboxResponse(
+        id=meta["id"],
+        name=meta["name"],
+        created_at=meta.get("created_at"),
+        source=meta.get("source"),
+        url=f"/staging?sandbox={meta['id']}",
+        size_bytes=meta.get("size_bytes"),
+        last_active=meta.get("last_active"),
+    )
+
+
+@app.post("/api/sandboxes", status_code=201, response_model=SandboxResponse)
+def create_sandbox(body: SandboxCreate):
+    try:
+        meta = get_sandbox_manager().create(body.name, source=body.source or "base")
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return _sandbox_response(meta)
+
+
+@app.get("/api/sandboxes", response_model=list[SandboxResponse])
+def list_sandboxes():
+    return [_sandbox_response(m) for m in get_sandbox_manager().list()]
+
+
+@app.delete("/api/sandboxes/{sandbox_id}", status_code=204)
+def delete_sandbox(sandbox_id: str):
+    if not get_sandbox_manager().delete(sandbox_id):
+        raise HTTPException(404, f"Sandbox {sandbox_id} not found")
 
 
 # ── Staging Dashboard ──

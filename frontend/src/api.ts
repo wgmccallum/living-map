@@ -1,7 +1,38 @@
 const BASE = "/api";
 
+// A ?sandbox=<id> param enters that isolated DB copy; the id persists in
+// sessionStorage and rides on every request as X-Sandbox-Id, so the whole app
+// (knowledge map included) reflects that sandbox. No id → the base/production map.
+function initSandbox(): string | null {
+  if (typeof window === "undefined") return null;
+  const param = new URLSearchParams(window.location.search).get("sandbox");
+  if (param) {
+    sessionStorage.setItem("sandboxId", param);
+    const url = new URL(window.location.href);
+    url.searchParams.delete("sandbox");
+    window.history.replaceState({}, "", url);
+  }
+  return sessionStorage.getItem("sandboxId");
+}
+const sandboxId = initSandbox();
+
+function sandboxHeaders(extra: Record<string, string> = {}): Record<string, string> {
+  return sandboxId ? { ...extra, "X-Sandbox-Id": sandboxId } : extra;
+}
+
+/** The active sandbox id, or null when on the base/production map. */
+export function currentSandboxId(): string | null {
+  return sandboxId;
+}
+
+/** Leave the current sandbox: clear it and reload onto the base map. */
+export function exitSandbox(): void {
+  sessionStorage.removeItem("sandboxId");
+  window.location.href = "/";
+}
+
 async function get<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE}${path}`);
+  const res = await fetch(`${BASE}${path}`, { headers: sandboxHeaders() });
   if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`);
   return res.json();
 }
@@ -9,7 +40,7 @@ async function get<T>(path: string): Promise<T> {
 async function post<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: sandboxHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`);
@@ -19,7 +50,7 @@ async function post<T>(path: string, body: unknown): Promise<T> {
 async function patch<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json" },
+    headers: sandboxHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`);
@@ -27,7 +58,7 @@ async function patch<T>(path: string, body: unknown): Promise<T> {
 }
 
 async function del(path: string): Promise<void> {
-  const res = await fetch(`${BASE}${path}`, { method: "DELETE" });
+  const res = await fetch(`${BASE}${path}`, { method: "DELETE", headers: sandboxHeaders() });
   if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`);
 }
 
@@ -65,6 +96,16 @@ export interface Frame {
   frame_type: string;
   is_reference: boolean;
   schemas: Schema[];
+}
+
+export interface Sandbox {
+  id: string;
+  name: string;
+  url: string;
+  created_at?: string | null;
+  source?: string | null;
+  size_bytes?: number | null;
+  last_active?: string | null;
 }
 
 export interface Annotation {
@@ -227,6 +268,13 @@ export const api = {
     data: { id: string; name: string; description?: string },
   ) => post<Frame>(`/frames/${encodeURIComponent(sourceFrameId)}/fork`, data),
   deleteFrame: (frameId: string) => del(`/frames/${encodeURIComponent(frameId)}`),
+
+  // Sandboxes (full isolated DB copies, reached by capability URL).
+  // If already inside a sandbox, branch from it; otherwise copy the base map.
+  listSandboxes: () => get<Sandbox[]>("/sandboxes"),
+  createSandbox: (name: string, source?: string) =>
+    post<Sandbox>("/sandboxes", { name, source: source ?? sandboxId ?? "base" }),
+  deleteSandbox: (id: string) => del(`/sandboxes/${encodeURIComponent(id)}`),
 
   // Math Domains CRUD
   listMathDomains: () => get<MathDomain[]>("/math-concepts"),

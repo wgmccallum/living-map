@@ -90,6 +90,12 @@ Deploys are triggered by pushing to the GitHub branch Railway is watching. Railw
 
 > **WAL-safe copies:** SQLite runs in WAL mode, so recent commits live in `living_map.db-wal`. Never copy the DB with a plain `cp` — it captures only the main file and drops uncheckpointed data. Use `sqlite3 living_map.db ".backup 'dest.db'"` (atomic, consistent, server-safe) or checkpoint first with `PRAGMA wal_checkpoint(TRUNCATE)`. `publish.sh`, `snapshot.sh`, and `deploy.sh` already do this.
 
+### Sandboxes (per-collaborator isolated DB copies)
+- A **sandbox** is a full, independent copy of the base DB, reached via a **capability URL** (`/staging?sandbox=<id>` or `/?sandbox=<id>`). The unguessable id is the credential — no login. Anyone with the link has full read/write on that sandbox only; the base/production map is untouched.
+- Backend: [`living_map/sandboxes.py`](living_map/sandboxes.py) (`SandboxManager`: create via SQLite online-backup, list, delete, LRU bundle cache). Routing is a `ContextVar` set by middleware in [`app.py`](living_map/app.py) from the `X-Sandbox-Id` header (or `?sandbox=`); the `get_dal/get_graphs/get_staging_dal` getters resolve to that sandbox's DB. An unknown id returns 404 (never silently falls back to base). Management routes: `POST/GET /api/sandboxes`, `DELETE /api/sandboxes/{id}` (these always operate on the base/registry).
+- Frontend: the staging dashboard's `api()` and `frontend/src/api.ts` inject `X-Sandbox-Id` (id read from `?sandbox=` → `sessionStorage`). The dashboard has a Sandboxes panel (create/open/copy-link/delete) and a banner with Exit.
+- **Storage / persistence — REQUIRED for Railway:** sandboxes live in `SANDBOX_DIR` (defaults to `living-map/sandboxes/`, gitignored, locally). Railway containers are **ephemeral**, so to use sandboxes on the deployed app you MUST attach a Railway **persistent volume** and set env `SANDBOX_DIR=/<mount>/sandboxes`. Without a volume, sandboxes (and all runtime prod edits) are wiped on every redeploy. The same volume could later host the base DB so production edits persist too (not yet done).
+
 ### Operating Railway
 - Push to GitHub → Railway auto-deploys
 - `railway logs` — tail production logs (requires `brew install railway` + `railway link`)

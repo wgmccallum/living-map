@@ -5,3 +5,8 @@ dockerfilePath = "Dockerfile"
 [deploy]
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 3
+
+# Sandboxes (per-collaborator DB copies) need durable storage to survive redeploys.
+# Attach a persistent VOLUME in the Railway dashboard (volumes can't be defined here)
+# and set env SANDBOX_DIR=/<mount>/sandboxes. Without a volume, sandboxes are
+# ephemeral and wiped on every redeploy. See CLAUDE.md → "Sandboxes".

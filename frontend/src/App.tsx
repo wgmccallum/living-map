@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import { api, type KC, type Edge, type Frame, type Schema, type Stats, type ValidationReport, type QuotientResult, type ConvexityViolation, type LaminarityViolation, type MathDomain, type MathDomainEdge } from "./api";
+import { api, currentSandboxId, exitSandbox, type KC, type Edge, type Frame, type Schema, type Stats, type ValidationReport, type QuotientResult, type ConvexityViolation, type LaminarityViolation, type MathDomain, type MathDomainEdge } from "./api";
 import { DAGView, type DAGViewHandle } from "./DAGView";
 import { MathDomainsView } from "./MathDomainsView";
 import { TopologyDiagnosticsView } from "./TopologyDiagnosticsView";
@@ -87,18 +87,35 @@ export function App() {
   const [edgeSource, setEdgeSource] = useState<string | null>(null);
   const [addEdgeError, setAddEdgeError] = useState<string | null>(null);
 
-  // Fork frame state
+  // Sandbox banner: if this session is scoped to a sandbox, resolve its name.
+  const [sandboxLabel, setSandboxLabel] = useState<string | null>(null);
+  useEffect(() => {
+    const sid = currentSandboxId();
+    if (!sid) return;
+    api.listSandboxes()
+      .then((list) => {
+        const me = list.find((s) => s.id === sid);
+        if (!me) {
+          // Sandbox was deleted out from under us. Clear the stale id and drop
+          // back to the base map rather than trapping the user in a phantom
+          // sandbox (every scoped /api call 404s, and the id keeps poisoning the
+          // shared sessionStorage["sandboxId"] used by the staging dashboard too).
+          exitSandbox();
+          return;
+        }
+        setSandboxLabel(me.name);
+      })
+      .catch(() => setSandboxLabel(`sandbox ${sid.slice(0, 8)}…`));
+  }, []);
+
+  // Fork-to-sandbox state (the "Fork" button now creates a full isolated sandbox)
   const [showForkForm, setShowForkForm] = useState(false);
-  const [forkId, setForkId] = useState("");
-  const [forkName, setForkName] = useState("");
-  const [forkDesc, setForkDesc] = useState("");
+  const [sandboxName, setSandboxName] = useState("");
   const [forkError, setForkError] = useState<string | null>(null);
 
   const resetForkForm = () => {
     setShowForkForm(false);
-    setForkId("");
-    setForkName("");
-    setForkDesc("");
+    setSandboxName("");
     setForkError(null);
   };
 
@@ -289,6 +306,26 @@ export function App() {
   const filteredKCIds = searchQuery ? new Set(filteredKCs.map((k) => k.id)) : null;
 
   return (
+    <>
+      {sandboxLabel && (
+        <div
+          style={{
+            background: "#7c3aed", color: "#fff", padding: "6px 14px",
+            display: "flex", alignItems: "center", gap: 12, fontSize: 13,
+          }}
+        >
+          <strong>🧪 Sandbox: {sandboxLabel}</strong>
+          <span style={{ opacity: 0.85 }}>— changes here are isolated from production.</span>
+          <span style={{ flex: 1 }} />
+          <button
+            className="toolbar-btn"
+            style={{ background: "#fff", color: "#7c3aed" }}
+            onClick={() => exitSandbox()}
+          >
+            Exit sandbox
+          </button>
+        </div>
+      )}
     <div className="app-layout">
       {/* Left: Control Panel */}
       <div className="control-panel">
@@ -329,12 +366,11 @@ export function App() {
               onClick={() => {
                 setShowForkForm(true);
                 setForkError(null);
-                const base = activeFrame.id;
-                setForkId(`${base}-fork`);
-                setForkName(`${activeFrame.name} (fork)`);
+                setSandboxName(`${activeFrame.name} sandbox`);
               }}
+              title="Create a private, fully isolated copy of the whole map (a sandbox) you can edit freely"
             >
-              Fork frame…
+              Fork to sandbox…
             </button>
           )}
           {activeFrame && (
@@ -378,60 +414,38 @@ export function App() {
           )}
           {showForkForm && activeFrame && (
             <div className="add-domain-form" style={{ position: "static", marginTop: 8, width: "auto" }}>
-              <label className="form-label">Forking: {activeFrame.name}</label>
-              <label className="form-label">New frame ID</label>
+              <label className="form-label">Create an isolated sandbox</label>
+              <div style={{ fontSize: 12, opacity: 0.8, margin: "2px 0 6px" }}>
+                Copies the entire map into a private sandbox you can edit freely.
+                You'll get a shareable link; production stays untouched.
+              </div>
+              <label className="form-label">Sandbox name</label>
               <input
                 type="text"
-                placeholder="e.g. counting-numbers-bill"
-                value={forkId}
-                onChange={(e) => setForkId(e.target.value)}
+                placeholder="e.g. Bill — linear functions trial"
+                value={sandboxName}
+                onChange={(e) => setSandboxName(e.target.value)}
                 className="domain-input"
-              />
-              <label className="form-label">New frame name</label>
-              <input
-                type="text"
-                placeholder="Display name"
-                value={forkName}
-                onChange={(e) => setForkName(e.target.value)}
-                className="domain-input"
-              />
-              <label className="form-label">Description (optional)</label>
-              <textarea
-                placeholder="Why this fork exists"
-                value={forkDesc}
-                onChange={(e) => setForkDesc(e.target.value)}
-                className="domain-input"
-                rows={2}
               />
               <div className="form-actions">
                 <button
                   className="toolbar-btn create"
-                  disabled={!forkId.trim() || !forkName.trim()}
+                  disabled={!sandboxName.trim()}
                   onClick={async () => {
                     setForkError(null);
                     try {
-                      const newFrame = await api.forkFrame(activeFrame.id, {
-                        id: forkId.trim(),
-                        name: forkName.trim(),
-                        description: forkDesc.trim() || undefined,
-                      });
+                      const sb = await api.createSandbox(sandboxName.trim());
                       resetForkForm();
-                      // Update frames list and switch active frame to the fork.
-                      // Bypass refreshData() — its stale-closure setActiveFrame would
-                      // race with our switch.
-                      const fresh = await api.listFrames();
-                      setFrames(fresh);
-                      setActiveFrame(newFrame);
-                      handleResetQuotient();
-                      setSelectedSchemaId(null);
-                      api.validateFrame(newFrame.id).then(setValidation);
+                      // Enter the new sandbox: reload the app scoped to it via its
+                      // capability URL. api.ts reads ?sandbox= on load.
+                      window.location.href = `/?sandbox=${sb.id}`;
                     } catch (e) {
                       const msg = e instanceof Error ? e.message : String(e);
                       setForkError(msg.replace(/^\d+:\s*/, ""));
                     }
                   }}
                 >
-                  Create fork
+                  Create sandbox
                 </button>
                 <button className="toolbar-btn cancel" onClick={resetForkForm}>Cancel</button>
               </div>
@@ -1083,5 +1097,6 @@ export function App() {
         mathDomainEdges={mathDomainEdges}
       />
     </div>
+    </>
   );
 }

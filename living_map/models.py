@@ -380,6 +380,25 @@ class AIBatchRequest(BaseModel):
     replace: bool = False
 
 
+# ── Sandboxes (per-collaborator DB copies) ──
+
+
+class SandboxCreate(BaseModel):
+    name: str
+    # "base" (default) copies production; or another sandbox id to branch from it.
+    source: str | None = "base"
+
+
+class SandboxResponse(BaseModel):
+    id: str
+    name: str
+    created_at: str | None = None
+    source: str | None = None
+    url: str
+    size_bytes: int | None = None
+    last_active: str | None = None
+
+
 # ── KC Conversations (Grain Review Chat) ──
 
 
