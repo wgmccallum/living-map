@@ -777,10 +777,22 @@ class StagingDAL:
         checks will use the frame_engine once schemas are being
         converted toward commit.
         """
-        schemas = self.list_staged_schemas(session_id, status="confirmed")
+        schemas = [s for s in self.list_staged_schemas(session_id) if s.status != "stale"]
 
-        # Check for empty schemas
-        empty = [s.id for s in schemas if not s.kc_ids]
+        # Check for empty schemas. Leaf-only nesting: KCs belong only to leaf
+        # schemas, and a parent's membership is the union of its descendants' —
+        # so emptiness must count KCs anywhere in the subtree, not just direct members.
+        children: dict[str, list] = {}
+        for s in schemas:
+            if s.parent_schema_id:
+                children.setdefault(s.parent_schema_id, []).append(s)
+
+        def _has_kcs(schema) -> bool:
+            if schema.kc_ids:
+                return True
+            return any(_has_kcs(c) for c in children.get(schema.id, []))
+
+        empty = [s.id for s in schemas if not _has_kcs(s)]
 
         # Check parent references
         schema_ids = {s.id for s in schemas}
