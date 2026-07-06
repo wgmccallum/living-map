@@ -208,6 +208,7 @@ Use this template when starting work on a new feature. Write the story into `## 
 - `frontend/src/index.css` — All styles
 - `deploy.sh` — Local build script (frontend + backend on one port for localhost testing)
 - `restore.sh` — Reset DB to seed snapshot
+- `checkpoint.sh` — Create/list/restore timestamped WAL-safe DB checkpoints (mid-session safety net)
 - `Dockerfile` — Railway build image
 - `railway.toml` — Railway deploy config
 
