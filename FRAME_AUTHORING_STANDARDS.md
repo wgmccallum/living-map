@@ -149,8 +149,24 @@ rewired.
 
 ## 5. Schema standards
 
-- **Leaves are family-based** — a leaf collects a coherent performance family, with a
-  minimum of three KCs. Do not subdivide if the split would break convexity.
+- **Leaves are family-based** — the organizing principle for a leaf (a bottom-level
+  schema, the only kind that directly contains KCs) is the performance family of §3:
+  the same student performance across its input representations. Example: "decide
+  whether two quantities in a context are proportional" given a verbal description,
+  given a table, given a graph, and given an equation is four KCs and one leaf —
+  one performance, four input representations. One leaf may hold a few tightly
+  coupled families (determining the rate of change and determining the initial
+  value, say); what it must not be is a topical grab-bag ("miscellaneous
+  proportionality skills").
+- **Minimum of three KCs per leaf** — a leaf with one or two KCs is not doing any
+  grouping work. A family too small to stand alone waits inside a neighboring leaf
+  until growth (typically a granularity split) makes its own leaf viable.
+- **Convexity outranks family purity.** A schema is convex when every prerequisite
+  path between two of its KCs stays inside the schema — if A → B → C with A and C in
+  the leaf but B outside, the leaf is not a self-contained unit and cannot be
+  collapsed to a single node. When splitting a multi-family leaf into finer leaves
+  would create such a path, the families stay together: do not subdivide if the
+  split would break convexity.
 - **Schema descriptions carry the concept-level meaning** that KCs must not (§3), plus
   curriculum references and, for boundary schemas, a statement of what frame is
   expected to dock there.
@@ -212,7 +228,7 @@ prove out — precedents in the casebook):
 
 Rules of engagement for AI-smell passes:
 
-- **Batch and rank.** Bring at most about ten questions per pass, most severe first.
+- **Batch and rank.** Bring at most about five questions per pass, most severe first.
   A fifty-item dump defeats the purpose of the human's limited attention.
 - **Phrase as adjudicable questions** — "is constructing a model genuinely
   prerequisite to interpreting one?" — not "there are problems in the modeling leaf."
