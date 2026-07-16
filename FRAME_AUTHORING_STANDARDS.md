@@ -69,6 +69,20 @@ pattern — the same performance with verbal, table, graph, or equation input �
 frame's basic granularity device. A student who translates the given representation
 into another and then succeeds has still demonstrated the KC.
 
+**The wiring-differential test: split by representation only when the variants would
+be wired differently** — different prerequisites or different dependents. A bundled
+multi-representation KC with several representation-specific in-edges is making a
+conjunctive overclaim (each edge asserts the student needs *that* representation's
+skill for the *whole* bundle), and splitting fixes it: each variant keeps only its
+own feeder. But when the variants would all get identical wiring (typically all
+roots, with dependents hanging off one variant), the split adds KCs and no
+information — keep the KC generic and, if needed, rewrite it to name the breadth of
+stimulus honestly. Paired precedents: the write-y=kx family was split (each variant
+had its own identify-k feeder and its own construct-family dependent) while
+solve-for-unknown-values stayed generic (all variants would be roots feeding the
+same contextual problems); see casebook C16, which also records the earlier
+instances (085-a split, 087 kept generic).
+
 **Never restrict how a student demonstrates a KC.** Banned phrasings: "without using a
 table," "by graphing," "mentally," "first find the rate and then work backwards."
 Wanting a method restriction is a symptom that the KC is badly written or too broad —
@@ -111,12 +125,23 @@ help," not "A and B are about the same thing."
   representation. Production → production edges are fine when the source is a genuine
   special case of the target.
 - **Curricular adjacency.** Imported sequence with no logical dependency.
+- **Classification-before-extraction.** A decide/classify KC as prerequisite to its
+  identify/extract sibling is usually a concept-proxy in disguise ("understands X"
+  wearing a classification costume). The dependency runs the other way: one decides a
+  relationship has a property by finding — or failing to find — its parameter, so the
+  extraction is the atom inside the classification. Exception: when the classification
+  criterion genuinely does not involve the extracted parameter (deciding
+  proportionality from a graph uses straight-line-through-origin, never k), the pair
+  is independent — cut, don't reverse. *(This overturns an earlier version of this
+  document that listed decide → identify as a legitimate pattern; see casebook C14.)*
 
 **Legitimate patterns:**
 
-- **Decide → identify → use/compare** chains within a single representation: deciding
-  a relationship has a property precedes extracting its parameters, which precedes
-  using or comparing them.
+- **Identify → decide** and **identify → use/compare** within a single
+  representation: extracting a relationship's parameter precedes classifying the
+  relationship (see the classification-before-extraction anti-pattern above) and
+  precedes using or comparing the parameter. Decide KCs are typically terminal
+  diagnostics, not middle links.
 - **Special-case-before-general** across the frame's main development (for example,
   each proportional-relationships skill feeding its linear-functions generalization).
   When such a family of parallel edges exists, it should be *complete* — a missing

@@ -92,9 +92,10 @@ evidence patterns here are the calibration set.
   similarity prerequisites outside frame), LF-100→081-a. Geometric slope-of-a-LINE was
   missing entirely: 085-h/l are function-rate KCs, and the 081 family works on bare
   lines (IM Grade 8 ordering: slope triangles precede linear functions). 091→081-b
-  KEPT, flagged borderline (the 8.EE.6 connection is the punchline, not strictly
-  load-bearing). LF-100's description deliberately avoids "using a slope triangle"
-  (would violate C1).
+  KEPT at the time, flagged borderline (the 8.EE.6 connection is the punchline, not
+  strictly load-bearing) — CUT 2026-07-16 once the slope chain carried the load; see
+  C11 for the adjudication. LF-100's description deliberately avoids "using a slope
+  triangle" (would violate C1).
 - **Backup:** `bak_edge_audit_20260713_145559`.
 
 ## C7 — Parallel-structure gap (Standards §4; detector: parallel-structure gaps)
@@ -118,6 +119,13 @@ evidence patterns here are the calibration set.
   features, not just the y = mx + b form.
 - **Declined as too weak:** 092-c→094 (the (1, r) point as precursor to
   unit-rate-as-slope — plausible but fails strict counterfactual).
+- **Challenged and KEPT (2026-07-16):** LF-100→081-a. Objection: one could
+  "formulate slope without ever having computed it." Ruling: real but esoteric —
+  the strict test's "other than in edge cases" clause covers it; 081-a's argument
+  forms rise/run between pairs of points, which IS LF-100's performance embedded.
+  Atomic-skill-inside stands. (The same session cut 094→081-a, leaving LF-100 as
+  081-a's only in-frame prerequisite — the similarity prerequisite docks from a
+  future Geometry frame, see C10.)
 
 ## C9 — Schema splits vs convexity; leaf organization (Standards §5)
 
@@ -134,17 +142,40 @@ evidence patterns here are the calibration set.
   future Ratios & Rates frame. Schema renamed "Recognizing Proportional Relationships"
   = the 4-KC decide family {088-a, 089-a/b/c}, redescribed as THE entry point / docking
   site from 6.RP/7.RP.1 prior knowledge.
-- Interim policy: roots = "prerequisites outside frame." Current justified roots:
-  084-d, 088-a/b/c, 089-a/b/c, 093-e, LF-100.
-- Placeholder precedent: LF-084-b (straight-line justification deferred to Geometry);
-  open question whether 081-a is the same territory.
+- Interim policy: roots = "prerequisites outside frame." Current justified roots
+  (updated by C14, 2026-07-16): 084-d, 088-b/c, 089-b, 090-a/b/c/d, 093-e, LF-100.
+- Docking-site update (C14): the entry point from 6.RP/7.RP.1 is now the identify-k
+  family {090-a/b/c/d} — the natural heirs of deleted LF-087 — plus 089-b; the decide
+  family is a diagnostic layer just downstream of entry, not the doorway itself.
+- Placeholder precedent: LF-084-b (straight-line justification deferred to Geometry).
+  The open question whether 081-a is the same territory was RESOLVED 2026-07-16:
+  081-a stays a real KC. The placeholder test is "is the performance developed and
+  assessed within this frame?" — 081-a is the first half of 8.EE.6, done by grade-8
+  students (similarity precedes slope triangles in IM's sequence); 084-b's converse
+  (the solution set of y = mx + b is a line) genuinely is not. Sharing similar-
+  triangles territory means both DOCK into a future Geometry frame, not that both
+  are placeholders. Refinement: docking points can attach to NON-ROOT KCs too —
+  081-a has in-frame prerequisite LF-100 while its similarity prerequisite is
+  outside-frame (a C6 mentions-without-prerequisite where the missing KC belongs to
+  another frame).
 - **Backup:** `bak_delete087_rename_20260706_170511`.
 
 ## C11 — Borderline flags currently open
 
-- 088-a→090-d (survives C3, flagged).
-- 090-d→093-d (flagged 2026-07-06).
-- 091→081-b (flagged in C6).
+All three flags resolved 2026-07-16; none currently open.
+
+- ~~088-a→090-d~~ RESOLVED by reversal (C14).
+- ~~090-d→093-d~~ RESOLVED: Bill confirmed the edge (strengthened by C14 — 090-d is
+  a root carrying the applying family directly; solving rate problems genuinely needs
+  extraction of the constant). Flag cleared, edge confirmed.
+- ~~091→081-b~~ RESOLVED by cut (backup `bak_cut_091_081b_20260716_065255`).
+  Fails the strict counterfactual: 081-b's derivation needs slope constancy (fed by
+  081-a) and the point (0,0), not the ability to write PR equations — 091 is neither
+  ingredient nor special case of the argument. The "8.EE.6 punchline" (PR equations
+  ARE line equations) that justified keeping it lives properly in the bridge
+  principle 099, which 091 already feeds; the edge was curricular adjacency (the
+  sentence order of 8.EE.6). 081-b keeps the derivation chain 081-a→081-b→081-c;
+  091 keeps out-edge →099. Frame 60 KCs / 87 edges, validates all-4.
 
 ## C12 — Ingestion precedents (Standards §2)
 
@@ -184,6 +215,99 @@ evidence patterns here are the calibration set.
   whenever it hasn't appeared in a while), and the app's search bar is the canonical
   dereference (matches on ID and description).
 - **Pending:** lineage log implementation (table + retire/mint workflow in the app).
+
+## C14 — Classification-before-extraction; decide → identify overturned (Standards §4)
+
+- **Finding (2026-07-16, Bill's smell):** none of the decide KCs seemed a strict
+  prerequisite for its identify sibling — "for tables, first you identify the constant
+  of proportionality from a table; this skill helps you detect tables that are not
+  proportional." Diagnosis: the four decide→identify edges (088-a→090-d "kept" in C3,
+  089-a→090-a, 089-b→090-b, 089-c→090-c) were the last remnants of the C3
+  concept-proxy pattern — "must know *what* proportionality is first" wearing a
+  classification costume — and this document's own §4 had blessed decide → identify
+  as a legitimate pattern.
+- **Counterfactual per representation:** table — reading k off a given proportional
+  table needs one row and one division, no classification needed; reverse is strong
+  (deciding *is* extracting the candidate constant across rows and checking
+  constancy). Verbal — extracting "$3 per pound" is near-6.RP; judging whether a
+  context is proportional is the harder conceptual act done by recognizing a constant
+  rate exists. Equation — reading the coefficient in explicit y = kx is the atom;
+  deciding extends it to arbitrary forms. Graph — INDEPENDENT both ways: the decide
+  criterion (straight line through origin) never touches k.
+- **Resolution (Bill adjudicated):** reversed three (090-d→088-a, 090-a→089-a,
+  090-c→089-c); the graph pair separated — 089-b→090-b cut with no replacement.
+  Frame 60 KCs / 88 edges, validates all-4. Connectivity forced reversal over pure
+  deletion for the three: those decide KCs had no other edges.
+- **Consequences:** identify family {090-a/b/c/d} became roots (the docking site for
+  a future Ratios & Rates frame — closer kin to deleted LF-087 than the decide family
+  ever was); 088-a, 089-a, 089-c became sinks (classification as terminal
+  diagnostic) — completing 088-a's demotion arc from universal ancestor (C3) to zero
+  out-edges; schema "Recognizing Proportional Relationships" redescribed (no longer
+  "THE entry point"). Closes C11's first flag; strengthens 090-d→093-d.
+- **Rule:** decide/classify KCs are built on their identify/extract atoms, not the
+  reverse; a decide → identify edge is usually a concept-proxy in disguise. When the
+  classification criterion doesn't involve the parameter at all, the pair is
+  independent — cut, don't reverse. (Standards §4 anti-pattern added; the former
+  "decide → identify → use/compare" legitimate pattern rewritten.)
+- **Backup:** `bak_decide_identify_reversal_20260716_064029`. NOTE: taken with plain
+  `cp` before the WAL rule was surfaced — verified complete after the fact
+  (integrity ok, 205 edges, old edges present). Future scripts: `sqlite3 .backup`.
+
+## C15 — Bridge content hiding in the wrong schema; the lone-mention diagnostic (Standards §4, §5)
+
+- **Smell (Bill, 2026-07-16):** examining 094→081-a — "to interpret the unit rate as
+  a slope, you need to know what the slope is. Is slope mentioned anywhere else in
+  the proportional relationships schema?"
+- **Diagnostic:** it wasn't — 094 was the ONLY slope mention in any PR leaf; every
+  other mention was LF-side. A concept mentioned by exactly one KC in a schema,
+  while a sibling schema owns the concept, marks that KC as misplaced bridge
+  content. 094's long description is 8.EE.5 language sitting in a 7.RP leaf.
+- **Resolution:** cut 094→081-a (unit-rate-as-slope is not prerequisite to the
+  similar-triangles argument — the dependency runs the other way); added LF-100→094
+  (to equate the unit rate with the slope you must know what the slope of a line
+  is); moved 094 to linear-function-properties beside 099 — bridge KCs live on the
+  general side, with the special-case side feeding them (090-b→094 retained).
+- **Rule:** a KC that imports a concept its schema never otherwise mentions is
+  probably bridge content; place it in the schema that owns the concept, fed by
+  both sides of the bridge. Backups: `bak_cut_094_081a_20260716_071301`,
+  `bak_094_bridge_20260716_072649`.
+- **Infra lesson discovered here:** the server's in-memory NetworkX graph is loaded
+  at startup and NOT updated by direct-sqlite edits — the API validate endpoint
+  produced phantom violations against stale wiring (and had been silently
+  validating stale wiring since 2026-07-06). After direct sqlite work, validate
+  OFFLINE (build GraphStore from the DB, call frame_engine.validate_frame) and
+  restart the server. See CLAUDE.md.
+
+## C16 — The wiring-differential test for representation splits (Standards §3)
+
+- **Question:** when does the differentiate-by-input-representation principle (§3)
+  demand a split, and when is a generic multi-representation KC honest? Adjudicated
+  2026-07-16 on the two open granularity questions, with opposite outcomes.
+- **093-e KEPT GENERIC** ("solve for unknown values in a PR", stimulus: context,
+  table, graph, or equation): all four would-be variants have out-of-frame
+  prerequisites (equation evaluation, graph reading, equivalent ratios) — four
+  identical roots — and the applying KCs are all contextual, so they'd hang off one
+  variant leaving the rest as disconnected root-sinks. No differential wiring, no
+  split. Also: a from-graph variant would shadow point-interpretation (092-a), and
+  a from-equation variant is below the frame's floor.
+- **091 SPLIT** (write y = kx; backup `bak_091_split_20260716_081857`): its four
+  in-edges 090-a/b/c/d→091 were each individually FALSE as conjunctive claims (a
+  student who has never seen a PR graph still writes y=kx from a table). Narrowed
+  091 to verbal (085-a precedent: keep ID and edges, 090-d→091, →099), minted
+  **LF-101** (from a table, 090-a→101) and **LF-102** (from a graph, 090-b→102)
+  per §9 accession numbering, with split provenance annotations as the interim
+  lineage log (C13). 090-c→091 cut outright — there is no equation-input variant
+  of writing an equation.
+- **C7 completeness dividend:** the construct family (085-a/n/o/p) had NO PR
+  feeders; the split supplied the missing special-case-first family: 091→085-a,
+  101→085-n, 102→085-o. 085-p (two points) correctly has no analog.
+- **Rule (now Standards §3):** split by representation only when the variants would
+  be wired differently; a bundled KC with representation-specific in-edges is a
+  conjunctive overclaim — split it; identically-wired variants are complexity
+  without information — keep generic. Earlier instances, same test avant la
+  lettre: 085-a split (each variant had its own determine-m/b feeder pair), 087
+  rewritten generic instead of split (variants shared all wiring).
+- Frame after both: 62 KCs / 89 edges, validates all-4 offline.
 
 ---
 
