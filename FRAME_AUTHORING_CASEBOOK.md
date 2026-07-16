@@ -157,6 +157,10 @@ evidence patterns here are the calibration set.
   0 schemas. Any multi-sheet relational workbook needs a structure-aware importer.
 - **Curricular-sequence hazard:** Prototype-2 ingest inferred 86 candidate prereqs by
   concept-adjacency rule — imported as review-only, never committed as-is.
+- **Evidence:** all four staging sessions (including the abandoned ones, whose content
+  survives nowhere else) are preserved in
+  `archive/archive_deleted_sandbox_linear-functions-trial_20260624.db` — see
+  [archive/README.md](archive/README.md).
 
 ## C13 — Identifiers are birth records, not addresses (Standards §9)
 
