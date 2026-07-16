@@ -216,6 +216,14 @@ class ErrorResponse(BaseModel):
     error: str
 
 
+class ReloadResponse(BaseModel):
+    status: str
+    knowledge_nodes: int
+    knowledge_edges: int
+    math_nodes: int
+    math_edges: int
+
+
 # --- Staging Area (Moderated Bulk Add) ---
 
 

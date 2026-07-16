@@ -209,6 +209,7 @@
   <h1>Living Map — Staging Dashboard</h1>
   <span class="subtitle">Moderated Bulk Add Pipeline</span>
   <span style="flex:1"></span>
+  <button class="btn btn-outline btn-sm" onclick="reloadGraph()" title="Rebuild the server's in-memory graph from the database — needed after direct sqlite edits so validation and path queries see current wiring">Reload graph</button>
   <a href="/" class="btn btn-outline btn-sm">← Knowledge Map</a>
 </div>
 
@@ -625,6 +626,18 @@ function toast(msg, type = 'success') {
 
 function badge(status) {
   return `<span class="badge badge-${status}">${status.replace('_', ' ')}</span>`;
+}
+
+// Admin: rebuild the server's in-memory NetworkX graphs from SQLite (needed
+// after direct-sqlite edits, which are invisible to graph-backed endpoints).
+// api() injects X-Sandbox-Id, so inside a sandbox this reloads that sandbox.
+async function reloadGraph() {
+  try {
+    const r = await api('POST', '/api/reload');
+    toast(`Graph reloaded: ${r.knowledge_nodes} KCs, ${r.knowledge_edges} edges`);
+  } catch (e) {
+    toast(`Reload failed: ${e.message}`, 'error');
+  }
 }
 
 // ═══════════════════════════════════════════════════════

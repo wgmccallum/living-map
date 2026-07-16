@@ -38,6 +38,7 @@ from .models import (
     MathConceptUpdate,
     QuotientRequest,
     QuotientSaveRequest,
+    ReloadResponse,
     SchemaCreate,
     SchemaKCsAdd,
     SchemaUpdate,
@@ -753,6 +754,27 @@ def bulk_export():
 @app.get("/api/stats")
 def stats():
     return get_graphs().stats()
+
+
+@app.post("/api/reload", response_model=ReloadResponse)
+def reload_graphs():
+    """Reload the in-memory NetworkX graphs from SQLite.
+
+    Admin escape hatch: direct-sqlite edits bypass the DAL, leaving graph-backed
+    endpoints (validate, quotients, path queries) checking stale wiring until
+    the graphs are rebuilt. Sandbox-scoped like every data route — with an
+    X-Sandbox-Id header this reloads that sandbox's graphs, not the base map.
+    """
+    graphs = get_graphs()
+    graphs.reload()
+    kg, mg = graphs.knowledge_graph, graphs.math_graph
+    return ReloadResponse(
+        status="reloaded",
+        knowledge_nodes=kg.number_of_nodes(),
+        knowledge_edges=kg.number_of_edges(),
+        math_nodes=mg.number_of_nodes(),
+        math_edges=mg.number_of_edges(),
+    )
 
 
 # ── Staging Sessions (Moderated Bulk Add) ──
