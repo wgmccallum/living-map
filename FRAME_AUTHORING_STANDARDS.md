@@ -109,6 +109,31 @@ its absence is an audit signal (§7).
 
 ## 4. Edge semantics
 
+**What an edge means — and two things it does not.** An edge A → B is a claim about
+learners: mastery of B cannot arise without A. It is not a claim about mathematics —
+that B's justification rests on A — and it is not a claim about teaching order. All
+three relations are tempting to draw as arrows on the same nodes, and the frame
+separates them deliberately:
+
+- *Mathematical dependency* enters the frame either as a derivation KC, when the
+  argument itself is content students learn, or as a placeholder, when the
+  justification is real but deferred to another frame. It is never, by itself,
+  an edge.
+- *Pedagogical sequence* is a walk through the frame, not part of it. Edges
+  constrain the order of **mastery**, not the order of **encounter**: a curriculum
+  may open with the punchline — exhibit the destination before anything upstream is
+  mastered — without violating an edge, because encountering a phenomenon is not
+  performing a KC. Different curricula walk the same frame differently; the frame
+  records what every successful walk must respect. (Spiral designs that teach an
+  informal version early and formalize it later are not counterexamples: the
+  informal and formal performances are different KCs — a grain question, not a
+  contradiction.)
+
+A consequence worth keeping: **pedagogy cannot contradict a correct edge, only
+refute a wrong one.** If some teaching sequence reliably produces mastery of B
+before A, the edge was false — cut it. Teaching experience is evidence against
+edges, alongside task-based falsification (§8.2). See casebook C17.
+
 **The strict counterfactual test:** an edge A → B means a student who cannot do A
 cannot do B, other than in edge cases. Not "A is usually taught first," not "A would
 help," not "A and B are about the same thing."

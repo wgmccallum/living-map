@@ -309,6 +309,34 @@ All three flags resolved 2026-07-16; none currently open.
   rewritten generic instead of split (variants shared all wiring).
 - Frame after both: 62 KCs / 89 edges, validates all-4 offline.
 
+## C17 — Mathematical vs cognitive vs pedagogical meaning of an edge (Standards §4 preamble)
+
+- **Question (Bill, 2026-07-16, longstanding):** an edge seems to carry both a
+  mathematical and a pedagogical meaning, and the two can contradict — e.g., it is a
+  perfectly valid pedagogical move to run opposite to the logical direction, telling
+  the story from the end and going back to see how you got there.
+- **Resolution:** three relations live on the same nodes and get only one arrow
+  type between them. Edges are the COGNITIVE relation (strict counterfactual).
+  Mathematical dependency is housed as derivation KCs when the argument is itself
+  content (081-a/b/c) or as placeholders when deferred cross-frame (084-b). The
+  pedagogical sequence is a walk over the frame, not part of it, and is constrained
+  only in its MASTERY order — the encounter/mastery distinction: punchline-first
+  storytelling sequences encounters, and encountering a phenomenon is not
+  performing a KC.
+- **Same-day evidence of the conflation:** 091→081-b cut (story structure
+  masquerading as prerequisite — "the 8.EE.6 punchline"); the decide→identify
+  family (7.RP.2a/2b document order imported as dependency); 084-b (pedagogy
+  legitimately running against MATHEMATICAL order — assume the fact, justify in
+  Geometry — with the placeholder as the receipt).
+- **Consequence:** pedagogy cannot contradict a correct edge, only refute a wrong
+  one — a curriculum that reliably produces mastery of B before A falsifies A→B.
+  Teaching-order experience joins task generation (§8.2) as an edge-falsification
+  instrument.
+- **Deliberately not in the frame:** the walk itself. If collaborators later need
+  curriculum narratives, they should be an overlay (an ordered path of encounters,
+  validated by "assess only after in-edges are banked") — never additional edges.
+  The §8.1 curriculum-walk stress test already checks graph/walk consistency.
+
 ---
 
 *Add entries in the same format. Every substantive change to the standards document
