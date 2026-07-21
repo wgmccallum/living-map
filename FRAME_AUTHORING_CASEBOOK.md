@@ -508,6 +508,98 @@ All three flags resolved 2026-07-16; none currently open.
   pass #1 are now resolved or explicitly deferred (Q4 → the 084-a open question).
 - **Backup:** `bak_q5_098_feeders_20260721_073923`.
 
+## C22 — The atoms-already-exist test: a KC dissolved into a schema description (Standards §3, §5)
+
+- **Finding (2026-07-21, resolving the open question recorded in C20):** LF-084-a
+  ("Interpret y = mx + b as defining a linear function", the frame's ONLY
+  Definition-type KC) was suspected by Bill of being a schema in disguise. The
+  decisive evidence: **every assessable atom in its long description already existed
+  as a KC in the frame** — "identifying m as the rate of change" = LF-085-j
+  near-verbatim; "identifying b as the y-intercept (initial value)" = LF-085-k;
+  "explain that it defines a linear function" = LF-084-h (whose decide-from-equation
+  criterion is *defined* as equivalence to y = mx + b) plus LF-084-d's closing
+  clause ("…so that the output can be expressed as y = mx + b"). Task-generation
+  falsification (§8.2): no task assesses 084-a without being a 085-j/k, 084-h, or
+  084-d task. So of the three candidate resolutions, **demote-to-performance and
+  split-into-atoms both collapse into minting duplicates** — absorption was the only
+  non-degenerate dissolution. This is C3's mirror: 088-a proxied "understands
+  proportionality" (PR side); 084-a proxied "understands the y = mx + b form" (LF
+  side), and on both sides the concept-level content ends up in schema descriptions.
+  Corroborating: 084-a's out-edges were already nearly all redundant (084-c kept
+  084-d; 084-h kept 084-d and 085-j; placeholder 084-b kept 081-a) — only
+  084-a→099 did real work.
+- **Resolution (Bill adjudicated: absorb):** LF-084-a DELETED; its concept-level
+  content absorbed into the `linear-function-properties` schema description (which
+  now names the form-interpretation explicitly and points to the assessable atoms);
+  heir edge **084-d→099** added (mentions test: 099's description is written
+  entirely in 084-d's defining-features vocabulary); the other 4 edges cut with no
+  replacement. Provenance annotation on the schema = interim lineage log (C16
+  style); the resolved open_question annotation survives the KC row's deletion as
+  a historical record.
+- **Consequences:** frame **61 KCs / 74 edges / 15 schemas**, components
+  52+2+2+2+2+1 (main component one smaller; island structure unchanged); roots
+  exactly the previously justified list; no Definition-type KC remains in the frame
+  (the frame's working definition is 084-d, a Principle — which is why 084-a was
+  redundant even *as* a definition). Validates all-4 offline and via live API
+  (POST /api/reload). **Q4 (091→099) deliberately deferred again** per Bill — to be
+  adjudicated now that 099's in-edges are {084-d, 091}; its open_question
+  annotation updated.
+- **Rule (added to §3):** the **atoms-already-exist test** — when adjudicating a
+  suspected concept-KC, enumerate the assessable atoms in its description; if each
+  already exists as a KC in the frame, the KC is a schema description trapped in a
+  KC. Absorb it into the schema description; do not demote (mints a duplicate) or
+  split (mints several).
+- **Backup:** `bak_084a_absorb_20260721_121304`.
+
+## C23 — Terminology attaches to its object: unit rate vs constant of proportionality (Standards §3)
+
+- **Finding (2026-07-21, Bill's smell):** LF-001-c/d/e (Comparing Proportional
+  Relationships, 8.EE.5) said "compare the unit rates" — but a unit rate is
+  attached to a ratio, and what the compare family actually compares is the
+  parameter of each *relationship*. Internal evidence: the family's feeders
+  (090-a/b/c/d) already say "identify the constant of proportionality," and the LF
+  mirror family (097-a/b/c) says "rate of change" — 001's "unit rates" was the
+  inconsistency. An initial global-replace proposal was **rejected by Bill**, and
+  the refinement became the principle: LF-092-c (the point (1, r), 7.RP.2d) is
+  *genuinely* about the unit rate — the point's entire significance is the per-one
+  reading made visible on the graph — and LF-094 (8.EE.5) keeps "unit rate as the
+  slope" because slope is itself a per-one reading (rise per 1 of run), so the
+  identification is between two per-one quantities; "constant of proportionality =
+  slope" would flatten the bridge and lose the forward generalization to
+  rate-of-change-as-slope on the LF side (where no constant of proportionality
+  exists to appeal to).
+- **Resolution (Bill adjudicated; backup `bak_terminology_c23_20260721_150411`):**
+  (1) 001-c/d/e shorts + longs: "unit rates" → "constants of proportionality"
+  (001-c keeps its steepness clause). (2) Comparing-PR schema description likewise.
+  (3) 092-c long description tightened: "the unit rate **or** constant of
+  proportionality" (loose synonymy) → "the unit rate — **which equals** the
+  relationship's constant of proportionality" (teaches the relation); the (1, k)
+  rewrite was considered and rejected. (4) Root PR schema description was stale
+  ("including unit rates" predated LF-087's deletion, which moved unit-rate
+  computation out of the frame) → now names the constant of proportionality and
+  its graph interpretation. 094 unchanged. Remaining "unit rate" mentions in the
+  frame: exactly 092-c and 094, both deliberate.
+- **Rule (added to §3):** attach terminology to its object — unit rate ↔ per-one
+  value of a ratio/reading; constant of proportionality ↔ parameter of a
+  proportional relationship; rate of change/slope ↔ linear functions and graphs.
+  Equalities between terms are bridge-KC content, never loose synonymy. Classify
+  each occurrence by its object; never search-and-replace terminology globally.
+- **Consequences:** description-only change set — frame stays at 61 KCs / 74 edges /
+  15 schemas (post-C22); validates all-4. Rationale annotations on 001-c/d/e and
+  092-c; provenance annotations on both schema descriptions.
+- **Open thread (Bill, pinned):** the distinction suggests possible missing
+  finer-grain KCs about the three concepts *as objects* and the identifications
+  between them — the frame currently has only two bridge KCs (092-c, 094) covering
+  parts of the triangle. Recorded as a frame-level open_question annotation on
+  `linear-functions`; to be discussed before any KCs are minted.
+- **Q4 closed (same day, backup `bak_q4_cut_091_099_20260721_151019`):** 091→099
+  CUT per Bill — no cognitive prerequisite; the edge was C16-split residue
+  conjunctively claiming the bridge principle requires the *verbal-specific*
+  write-y=kx skill. 099's in-edges now {084-d} (the C22 heir edge); 091 keeps
+  091→085-a. Frame 61 KCs / 73 edges / 15 schemas, components 52+2+2+2+2+1,
+  validates all-4 offline and live. All smell-pass-1 questions are now fully
+  resolved; the frame's sole open question is the C23 three-concept thread above.
+
 ---
 
 *Add entries in the same format. Every substantive change to the standards document

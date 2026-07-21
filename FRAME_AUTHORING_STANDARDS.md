@@ -102,6 +102,35 @@ description. A warning sign: a KC that has accumulated a large number of outgoin
 edges is often standing in for a concept rather than describing a performance. Demote
 it to its literal performance and cut the proxy edges.
 
+**The atoms-already-exist test (when a whole KC is suspected of being a schema).**
+Sometimes the suspect is not an edge pattern but the KC itself — an
+"interpret/understand the meaning of X" node. To adjudicate, enumerate the assessable
+atoms in its description and look for each in the frame. If every atom already exists
+as a KC, the suspect is a schema description trapped in a KC: demoting it to a
+literal performance would mint a duplicate, and splitting it would mint several — so
+**absorb** it into the enclosing schema's description (naming where the assessable
+atoms live), rewire its one or two non-redundant edges to an heir (typically the
+frame's working definition or the atoms themselves), and delete it. A concept-proxy's
+out-edges are usually already redundant with its heir's, which makes dissolution
+cheap — that redundancy is itself confirming evidence. Precedent: casebook C22
+(LF-084-a dissolved into linear-function-properties; C3's mirror on the LF side).
+
+**Attach terminology to its object.** Mathematical terms that are numerically equal
+can still belong to different objects, and a KC's description uses the term of the
+object the student is actually handling. In the ratio–proportionality–linearity
+strand: a **unit rate** is the per-one value of a ratio or of a "y per 1 x" reading;
+the **constant of proportionality** is the parameter of a proportional relationship
+taken as an object; **rate of change** and **slope** belong to linear functions and
+their graphs. So extracting or comparing the parameter of a relationship uses
+*constant of proportionality*, while interpreting a per-one reading uses *unit rate*
+— even inside the same frame, and even though the numbers coincide. The equalities
+between the terms are themselves content and live in bridge KCs (the point (1, r)
+exhibits the unit rate on the graph; unit-rate-as-slope works because slope is
+itself a per-one reading); they must not leak into loose synonymy elsewhere
+("unit rate or constant of proportionality"). A global search-and-replace is
+exactly the wrong tool: classify each occurrence by its object. Precedent:
+casebook C23.
+
 **Sibling KCs get parallel wording.** Parallelism across a family is a feature, and
 its absence is an audit signal (§7).
 
