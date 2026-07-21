@@ -31,6 +31,16 @@ const CATEGORY_COLORS: Record<string, string> = {
   "COP": "#59a14f",
 };
 
+const DAGRE_LAYOUT = {
+  name: "dagre",
+  rankDir: "TB",
+  nodeSep: 20,
+  rankSep: 40,
+  edgeSep: 8,
+  padding: 20,
+  fit: true,
+};
+
 const MATH_CONCEPT_COLORS: Record<string, string> = {
   "whole-numbers": "#4e79a7",
   "coordinate-plane": "#e15759",
@@ -98,28 +108,136 @@ export const DAGView = forwardRef<DAGViewHandle, DAGViewProps>(function DAGView(
   const edgesRef = useRef(edges);
   edgesRef.current = edges;
 
-  // Cache node positions so they survive graph rebuilds
+  // Cache node positions and the viewport so they survive graph rebuilds
   const savedPositions = useRef<Map<string, Position>>(new Map());
+  const savedViewport = useRef<{ zoom: number; pan: Position } | null>(null);
 
   // Track which collapsed nodes we've already shown, so a new quotient can
   // pulse/center only the node(s) that were just collapsed.
   const prevCollapsedIds = useRef<Set<string>>(new Set());
 
+  // After a dagre layout, stack top-level schema groups vertically by the
+  // direction of the prerequisite edges between them (a group that feeds
+  // another sits above it), instead of leaving all groups' roots side by
+  // side at rank 0. Groups with no edges between them stay side by side in
+  // the same band. Skipped in quotient view (collapsed nodes have no
+  // root-schema group to stack by).
+  const stackRootSchemas = (cy: Core) => {
+    if (!frame || quotientResult) return;
+
+    const schemaById = new Map(frame.schemas.map((s) => [s.id, s]));
+    const rootOf = (schemaId: string): string => {
+      let s = schemaById.get(schemaId);
+      while (s && s.parent_schema_id && schemaById.has(s.parent_schema_id)) {
+        s = schemaById.get(s.parent_schema_id)!;
+      }
+      return s ? s.id : schemaId;
+    };
+
+    // Map each real KC node to its root schema group; leftovers get a lane.
+    const groupOfNode = new Map<string, string>();
+    for (const s of frame.schemas) {
+      const root = rootOf(s.id);
+      for (const kcId of s.kc_ids) {
+        if (cy.getElementById(kcId).nonempty()) groupOfNode.set(kcId, root);
+      }
+    }
+    cy.nodes().forEach((n) => {
+      if (n.isParent() || n.id().startsWith("schema-")) return;
+      if (!groupOfNode.has(n.id())) groupOfNode.set(n.id(), "__unassigned__");
+    });
+
+    const groupIds = [...new Set(groupOfNode.values())];
+    if (groupIds.length < 2) return;
+
+    // Group-quotient edges from the KC edges on screen.
+    const succs = new Map<string, Set<string>>(groupIds.map((g) => [g, new Set<string>()]));
+    const inDeg = new Map<string, number>(groupIds.map((g) => [g, 0]));
+    cy.edges().forEach((e) => {
+      const a = groupOfNode.get(e.source().id());
+      const b = groupOfNode.get(e.target().id());
+      if (!a || !b || a === b) return;
+      if (!succs.get(a)!.has(b)) {
+        succs.get(a)!.add(b);
+        inDeg.set(b, inDeg.get(b)! + 1);
+      }
+    });
+
+    // Longest-path layering (Kahn). A cycle between groups shouldn't happen
+    // in a valid frame; if it does, leave the layout alone.
+    const layerOf = new Map<string, number>();
+    const queue = groupIds.filter((g) => inDeg.get(g) === 0);
+    queue.forEach((g) => layerOf.set(g, 0));
+    for (let i = 0; i < queue.length; i++) {
+      const g = queue[i];
+      for (const h of succs.get(g)!) {
+        layerOf.set(h, Math.max(layerOf.get(h) ?? 0, layerOf.get(g)! + 1));
+        inDeg.set(h, inDeg.get(h)! - 1);
+        if (inDeg.get(h) === 0) queue.push(h);
+      }
+    }
+    if (queue.length < groupIds.length) return;
+    const maxLayer = Math.max(...layerOf.values());
+    if (maxLayer === 0) return; // no dependencies between groups — nothing to stack
+
+    const memberNodes = new Map<string, cytoscape.NodeCollection>();
+    for (const g of groupIds) memberNodes.set(g, cy.collection());
+    for (const [nodeId, g] of groupOfNode) {
+      memberNodes.set(g, memberNodes.get(g)!.union(cy.getElementById(nodeId)));
+    }
+
+    const allNodes = groupIds.reduce((acc, g) => acc.union(memberNodes.get(g)!), cy.collection());
+    const allBB = allNodes.boundingBox();
+    const centerX = (allBB.x1 + allBB.x2) / 2;
+    const GAP = 100;
+    let cursorY = allBB.y1;
+
+    for (let level = 0; level <= maxLayer; level++) {
+      const band = groupIds.filter((g) => layerOf.get(g) === level);
+      let bandHeight = 0;
+      for (const g of band) {
+        const nodes = memberNodes.get(g)!;
+        const bb = nodes.boundingBox();
+        const dy = cursorY - bb.y1;
+        if (dy !== 0) {
+          nodes.forEach((n) => {
+            const p = n.position();
+            n.position({ x: p.x, y: p.y + dy });
+          });
+        }
+        bandHeight = Math.max(bandHeight, bb.h);
+      }
+      const bandNodes = band.reduce((acc, g) => acc.union(memberNodes.get(g)!), cy.collection());
+      const bandBB = bandNodes.boundingBox();
+      const dx = centerX - (bandBB.x1 + bandBB.x2) / 2;
+      if (dx !== 0) {
+        bandNodes.forEach((n) => {
+          const p = n.position();
+          n.position({ x: p.x + dx, y: p.y });
+        });
+      }
+      cursorY += bandHeight + GAP;
+    }
+
+    // Persist so a graph rebuild keeps the stacked layout.
+    cy.nodes().forEach((node) => {
+      if (!node.isParent()) {
+        savedPositions.current.set(node.id(), { ...node.position() });
+      }
+    });
+    cy.fit(undefined, 30);
+  };
+
   // Expose imperative actions to parent
   useImperativeHandle(ref, () => ({
     resetLayout: () => {
       savedPositions.current.clear();
+      savedViewport.current = null;
       const cy = cyRef.current;
       if (cy) {
-        (cy.layout({
-          name: "dagre",
-          rankDir: "TB",
-          nodeSep: 20,
-          rankSep: 40,
-          edgeSep: 8,
-          padding: 20,
-          fit: true,
-        } as unknown as cytoscape.LayoutOptions)).run();
+        const layout = cy.layout(DAGRE_LAYOUT as unknown as cytoscape.LayoutOptions);
+        layout.one("layoutstop", () => stackRootSchemas(cy));
+        layout.run();
       }
     },
     // Push top-level schema groups apart horizontally, preserving each node's
@@ -198,7 +316,7 @@ export const DAGView = forwardRef<DAGViewHandle, DAGViewProps>(function DAGView(
       });
       cy.fit(undefined, 30);
     },
-  }), [frame]);
+  }), [frame, quotientResult]);
 
   // Build schema color map
   const schemaColorMap = useRef(new Map<string, string>());
@@ -384,16 +502,6 @@ export const DAGView = forwardRef<DAGViewHandle, DAGViewProps>(function DAGView(
       }
     }
 
-    // Save positions from previous instance before destroying
-    if (cyRef.current) {
-      cyRef.current.nodes().forEach((node) => {
-        if (!node.isParent()) {
-          savedPositions.current.set(node.id(), { ...node.position() });
-        }
-      });
-      cyRef.current.destroy();
-    }
-
     // Decide layout: use saved positions if we have them for most nodes, otherwise dagre
     const nodeIds = elements.filter((el) => el.data.id && !el.data.source && !el.data.isSchema).map((el) => el.data.id!);
     const hasPositions = nodeIds.length > 0 && nodeIds.filter((id) => savedPositions.current.has(id)).length >= nodeIds.length * 0.5;
@@ -521,22 +629,45 @@ export const DAGView = forwardRef<DAGViewHandle, DAGViewProps>(function DAGView(
               const pos = savedPositions.current.get(node.id());
               return pos || { x: 0, y: 0 };
             },
-            fit: true,
+            // When the previous instance's viewport was captured, restore it
+            // after construction instead of re-fitting, so a data-driven
+            // rebuild doesn't yank the user's pan/zoom.
+            fit: !savedViewport.current,
             padding: 20,
           } as unknown as cytoscape.LayoutOptions
-        : {
-            name: "dagre",
-            rankDir: "TB",
-            nodeSep: 20,
-            rankSep: 40,
-            edgeSep: 8,
-            padding: 20,
-            fit: true,
-          } as unknown as cytoscape.LayoutOptions,
+        : ({
+            ...DAGRE_LAYOUT,
+            // Layout events carry cy; the `cy` const is not yet assigned when
+            // the constructor's initial layout finishes.
+            stop: (e: { cy: Core }) => stackRootSchemas(e.cy),
+          } as unknown as cytoscape.LayoutOptions),
       minZoom: 0.05,
       maxZoom: 5,
       wheelSensitivity: 0.3,
     });
+
+    if (hasPositions && savedViewport.current) {
+      cy.viewport({ zoom: savedViewport.current.zoom, pan: savedViewport.current.pan });
+    }
+
+    // On initial page load the flex layout may not have resolved yet, so the
+    // constructor layout's fit() runs against a 0×0 container and is a no-op,
+    // leaving the graph stuck at zoom 1 in the top-left corner. Watch the
+    // container: keep cytoscape's size in sync, and re-fit once when the
+    // container first gains size (never afterwards, to not fight user pan/zoom).
+    let containerHadSize = (containerRef.current.clientWidth ?? 0) > 0 && (containerRef.current.clientHeight ?? 0) > 0;
+    const resizeObserver = new ResizeObserver(() => {
+      const el = containerRef.current;
+      if (!el || cy.destroyed()) return;
+      if (el.clientWidth > 0 && el.clientHeight > 0) {
+        cy.resize();
+        if (!containerHadSize) {
+          containerHadSize = true;
+          cy.fit(undefined, 30);
+        }
+      }
+    });
+    resizeObserver.observe(containerRef.current);
 
     cy.on("tap", "node", (evt) => {
       const id = evt.target.id();
@@ -656,10 +787,21 @@ export const DAGView = forwardRef<DAGViewHandle, DAGViewProps>(function DAGView(
     }
 
     return () => {
+      resizeObserver.disconnect();
       tooltip.remove();
       if (edgeTooltipRef.current) {
         edgeTooltipRef.current.remove();
         edgeTooltipRef.current = null;
+      }
+      // Capture layout and viewport (including any user drags/pan/zoom) so the
+      // next build restores the arrangement instead of re-running dagre.
+      if (!cy.destroyed()) {
+        cy.nodes().forEach((node) => {
+          if (!node.isParent()) {
+            savedPositions.current.set(node.id(), { ...node.position() });
+          }
+        });
+        savedViewport.current = { zoom: cy.zoom(), pan: { ...cy.pan() } };
       }
       cy.destroy();
       cyRef.current = null;

@@ -265,8 +265,12 @@ export function App() {
     });
   }, [activeFrame]);
 
-  // Compute KCs in active frame (for frame filtering)
-  const frameKCIds = (() => {
+  // Compute KCs in active frame (for frame filtering).
+  // These derived collections are memoized so their identities only change
+  // when the underlying data changes — DAGView rebuilds the whole cytoscape
+  // instance when its props change identity, and an unrelated state update
+  // (e.g. selecting a node) must not discard the user's layout.
+  const frameKCIds = useMemo(() => {
     if (!showOnlyActiveFrame || !activeFrame) return null;
     const ids = new Set<string>();
     for (const s of activeFrame.schemas) {
@@ -275,13 +279,20 @@ export function App() {
       }
     }
     return ids;
-  })();
+  }, [showOnlyActiveFrame, activeFrame]);
 
   // Apply frame filter
-  const frameFilteredKCs = frameKCIds ? kcs.filter((kc) => frameKCIds.has(kc.id)) : kcs;
-  const frameFilteredEdges = frameKCIds
-    ? edges.filter((e) => frameKCIds.has(e.source_kc_id) && frameKCIds.has(e.target_kc_id))
-    : edges;
+  const frameFilteredKCs = useMemo(
+    () => (frameKCIds ? kcs.filter((kc) => frameKCIds.has(kc.id)) : kcs),
+    [kcs, frameKCIds]
+  );
+  const frameFilteredEdges = useMemo(
+    () =>
+      frameKCIds
+        ? edges.filter((e) => frameKCIds.has(e.source_kc_id) && frameKCIds.has(e.target_kc_id))
+        : edges,
+    [edges, frameKCIds]
+  );
 
   // Apply schema filter
   const schemaAtoms = useMemo(() => {
@@ -289,21 +300,35 @@ export function App() {
     return computeAtomSet(selectedSchemaId, activeFrame.schemas);
   }, [selectedSchemaId, activeFrame]);
 
-  const baseKCs = schemaAtoms ? frameFilteredKCs.filter((kc) => schemaAtoms.has(kc.id)) : frameFilteredKCs;
-  const baseEdges = schemaAtoms
-    ? frameFilteredEdges.filter((e) => schemaAtoms.has(e.source_kc_id) && schemaAtoms.has(e.target_kc_id))
-    : frameFilteredEdges;
+  const baseKCs = useMemo(
+    () => (schemaAtoms ? frameFilteredKCs.filter((kc) => schemaAtoms.has(kc.id)) : frameFilteredKCs),
+    [frameFilteredKCs, schemaAtoms]
+  );
+  const baseEdges = useMemo(
+    () =>
+      schemaAtoms
+        ? frameFilteredEdges.filter((e) => schemaAtoms.has(e.source_kc_id) && schemaAtoms.has(e.target_kc_id))
+        : frameFilteredEdges,
+    [frameFilteredEdges, schemaAtoms]
+  );
 
   // Filter KCs by search
-  const filteredKCs = searchQuery
-    ? baseKCs.filter(
-        (kc) =>
-          kc.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          kc.short_description.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    : baseKCs;
+  const filteredKCs = useMemo(
+    () =>
+      searchQuery
+        ? baseKCs.filter(
+            (kc) =>
+              kc.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+              kc.short_description.toLowerCase().includes(searchQuery.toLowerCase())
+          )
+        : baseKCs,
+    [baseKCs, searchQuery]
+  );
 
-  const filteredKCIds = searchQuery ? new Set(filteredKCs.map((k) => k.id)) : null;
+  const filteredKCIds = useMemo(
+    () => (searchQuery ? new Set(filteredKCs.map((k) => k.id)) : null),
+    [filteredKCs, searchQuery]
+  );
 
   return (
     <>
