@@ -66,6 +66,9 @@ evidence patterns here are the calibration set.
 - **Result:** decide → identify-k → compare chain uniform across all four input
   representations.
 - **Backup:** `bak_088bc_proxy_edges_20260713_105002`.
+- **Addendum (2026-07-21):** the two edges this entry *added* on the rationale
+  "interpreting points needs graph-reading, not graph-making" (089-b→092-a/b) were
+  themselves proxies — for out-of-frame graph literacy — and were cut in C18.
 
 ## C5 — Production→interpretation in the modeling cycle (Standards §4)
 
@@ -143,7 +146,9 @@ evidence patterns here are the calibration set.
   = the 4-KC decide family {088-a, 089-a/b/c}, redescribed as THE entry point / docking
   site from 6.RP/7.RP.1 prior knowledge.
 - Interim policy: roots = "prerequisites outside frame." Current justified roots
-  (updated by C14, 2026-07-16): 084-d, 088-b/c, 089-b, 090-a/b/c/d, 093-e, LF-100.
+  (updated by C14 2026-07-16, C18 and C19 2026-07-21): 084-d, 085-e/i/k/l, 088-b/c,
+  089-b, 090-a/b/c/d, 092-a/b, 093-e, LF-100. The policy now extends to islands —
+  see Standards §4 and C18.
 - Docking-site update (C14): the entry point from 6.RP/7.RP.1 is now the identify-k
   family {090-a/b/c/d} — the natural heirs of deleted LF-087 — plus 089-b; the decide
   family is a diagnostic layer just downstream of entry, not the doorway itself.
@@ -336,6 +341,172 @@ All three flags resolved 2026-07-16; none currently open.
   curriculum narratives, they should be an overlay (an ordered path of encounters,
   validated by "assess only after in-edges are banked") — never additional edges.
   The §8.1 curriculum-walk stress test already checks graph/walk consistency.
+
+## C18 — Islands are legal when docked; the marked-vs-determined counterfactual; missing-frame signature (Standards §4 roots and islands policy)
+
+- **Discovery (2026-07-21, AI smell pass #1):** the committed frame was DISCONNECTED —
+  island {LF-089-b (decide proportional from graph), LF-092-a/b (explain point (x,y) /
+  point (0,0) on a PR graph), LF-096-a/b (LF analogs)} — created 2026-07-16 when C14
+  cut 089-b→090-b, the island's only bridge. Unnoticed because `validate_frame` checks
+  only convexity/closure/acyclicity/laminarity; it has never checked connectedness
+  (despite CLAUDE.md listing it). All "verified connected" claims since 07-16 were
+  offline component checks or stale.
+- **Proposed in-frame fix REJECTED (Bill):** 085-i (determine initial value from
+  graph) → 096-b (explain the intercept point in context) looked like
+  mentions-without-prerequisite (096-b's description says "identify the point where
+  the line crosses the y-axis"). **Marked-vs-determined counterfactual:** given a
+  graph with the intercept *marked*, a student interprets it without ever determining
+  it — interpretation needs graph-reading, not parameter extraction. Recurring
+  pattern: a description that mentions locating/identifying a feature does not
+  implicate the determine-KC if the feature could be given.
+- **Diagnosis (Bill):** the island is the symptom of a MISSING FRAME — coordinate
+  plane and graphs of covarying quantities (≈5.G.1-2, 6.NS.8, 6.EE.9; 8.F.5
+  qualitative graphs, absent from this frame entirely, belongs there too; working
+  name "Coordinate Plane & Covarying Quantities"). Internal confirmation: the island
+  is exactly the set of graph KCs with NO parameter content (straightness, meaning of
+  points), while every graph KC touching k/m/b (090-b, 085-h/i, 094, LF-100, 102,
+  095-a, 085-o, 088-c) is anchored to the main component *through* its parameter
+  content. Clincher: 092-c (the point (1, r)) is the one point-interpretation KC
+  that was connected — precisely the one whose content is the unit rate. Deleted
+  `coordinate-plane-v1` (never developed; 69 KCs preserved in
+  `living_map.db.bak_predelete_cop_20260702`) is raw material for that frame.
+- **Resolution (Bill approved all three, 2026-07-21):** (1) Standards §4 extended:
+  connectedness is a MAP-level property; an island is legal iff its roots are
+  justified docking points; disconnection is a diagnostic (missing edges vs missing
+  frame); validation reports components rather than gating on connectedness.
+  (2) 089-b→092-a/b CUT — C4 addendum: those edges were added as stand-ins for
+  graph-reading ("interpreting points needs graph-reading, not graph-making") and
+  fail the same counterfactual as 085-i→096-b. 092-a/b become docking roots;
+  **089-b becomes the frame's first deliberately isolated KC** (docking root + C14
+  terminal diagnostic, degree 0). (3) Docking surface recorded in the three boundary
+  schemas' descriptions (interpreting-proportional-relationships,
+  representing-and-interpreting-linear-functions, unit-rates-and-recognition); full
+  receiving surface for the future frame: 089-b, 092-a/b/c, 096-a/b, 088-c, 090-b,
+  085-h/i/o, 095-a, LF-100, 102, 084-g.
+- **Frame after:** 62 KCs / 87 edges; components 57 + 2 + 2 + 1, every component's
+  roots justified; justified roots list now 084-d, 088-b/c, 089-b, 090-a/b/c/d,
+  092-a/b, 093-e, LF-100. Validates all-4 offline and via live API (graph reloaded
+  via POST /api/reload). Stale "unit rate as slope (8.EE.5)" clause also removed
+  from the interpreting-PR leaf description (remnant of 094's C15 move).
+- **Backup:** `living_map.db.bak_islands_policy_20260721_062651`.
+
+## C19 — C14 re-audit of the LF half; a schema-quotient cycle as evidence of a mis-schemed family (Standards §4, §5)
+
+- **Finding (2026-07-21, AI smell pass #1, Q2):** the LF decide→identify lattice —
+  084-e/f/g/h (decide whether a verbal/table/graph/equation relationship is linear)
+  each feeding their extraction siblings 085-d..k (determine rate / initial value
+  from that representation), 8 edges, plus 084-d (defining features) → 085-l
+  (compute rate from two values) — was the same classification-before-extraction
+  anti-pattern C14 overturned on the PR side. The 2026-07-13 audit had "verified the
+  lattice clean," but that predated C14: **when a principle lands, the re-audit
+  (§10) must sweep BOTH halves of the frame**, and this one hadn't.
+- **Change set (Bill approved):** mirror C14 per representation. REVERSED the three
+  rate pairs — 085-d→084-e (verbal: deciding linearity is recognizing a constant
+  rate; extracting it is the atom), 085-f→084-f (table: deciding IS computing
+  differences and checking constancy), 085-j→084-h (equation: reading m in explicit
+  form is the atom; deciding linearity of arbitrary forms extends it). CUT the graph
+  pair 084-g→085-h with no replacement (straightness never touches the rate value —
+  independent both ways, the 089-b/090-b precedent). CUT the four initial-value
+  edges 084-e→085-e, 084-f→085-g, 084-g→085-i, 084-h→085-k (the linearity criterion
+  never involves the initial value). CUT 084-d→085-l (Δy/Δx is arithmetic, not an
+  application of the linearity principle).
+- **First application ROLLED BACK:** the reversals created a schema-quotient 2-cycle
+  linear-function-modeling ↔ linear-function-properties (frame_acyclicity/F3
+  violation): reversals ran modeling→properties while 084-a (interpret y = mx + b)
+  → 085-a (construct from verbal) — the only properties→modeling edge — ran back.
+  The KC graph stayed acyclic; only the quotient broke. C14 never hit this because
+  the PR decide family already lived in its own leaf. Inverse transaction applied,
+  DB verified edge-identical to backup.
+- **Resolution (option C, Bill approved over A: pure cuts, and B: cut 084-a→085-a):**
+  the cycle is *evidence the diagnostic family was mis-schemed* — a terminal
+  diagnostic layer hiding inside the concept schema, the inverse flavor of C15's
+  bridge-content-in-the-wrong-schema. NEW LEAF `recognizing-linear-relationships`
+  ("Recognizing Linear Relationships", 8.F.3) created under the frame root, exactly
+  parallel to `unit-rates-and-recognition` on the PR side; 084-e/f/g/h moved there
+  (4 KCs, min-3 satisfied, trivially convex — four sinks, no edges among them);
+  then the full edge set applied. Quotient now properties→modeling,
+  properties→recognizing, modeling→recognizing — acyclic.
+- **Consequences:** decide-linear family = terminal diagnostic sinks (completing the
+  frame-wide symmetry with C14: both recognizing leaves are diagnostic layers built
+  on extraction); NEW ROOTS 085-e (initial value from verbal — context-reading is
+  prior knowledge; no PR analog per C7), 085-i (from graph — C18 docking surface),
+  085-k (from equation — 6.EE/7.EE prior knowledge), 085-l (rate from two values —
+  rational-number arithmetic; sibling atom of LF-100). Justified-roots list updated
+  in C10. Frame: 62 KCs / 81 edges / 15 schemas, all four checks valid offline and
+  via live API (POST /api/reload). Option B was rejected partly because it would
+  foreclose ever fixing the 084-a→construct-family asymmetry symmetrically
+  (084-a→085-a is separately under scrutiny — smell-pass Q3 and weak findings).
+- **Rules:** (1) a landed principle triggers a whole-frame re-audit, not a
+  neighborhood one; (2) a schema-quotient cycle exposed by correcting edge
+  directions marks a mis-schemed family — move the family rather than sacrifice
+  correct edges (now Standards §5).
+- **Backups:** `bak_lf_decide_identify_20260721_063251` (first attempt, rolled
+  back), `bak_recognizing_linear_leaf_20260721_064133` (applied change set).
+
+## C20 — The 084-a neighborhood: derivations gate nothing; evaluation-suffices cuts; a KC suspected of being a schema (Standards §3, §4/C17)
+
+- **Finding (2026-07-21, AI smell pass #1, Q3):** 084-a (interpret y = mx + b as
+  defining a linear function) had exactly one in-edge — 081-c (derive y = mx + b) —
+  so the whole derivation chain LF-100→081-a→081-b→081-c gated 8 downstream KCs
+  including constructing models and graphing from equations. C17 in its purest form:
+  8.F.3 and 8.EE.6 are mastered independently in every framework; whole populations
+  master form-interpretation without ever mastering the derivation. Pedagogy
+  falsifies the edge.
+- **Resolution (Bill adjudicated):** (1) CUT 081-c→084-a; ADDED 084-d→084-a
+  (identifying the roles of m and b IS invoking the defining features; passes the
+  mentions test; intra-schema). The derivation strand LF-100→081-a→081-b→081-c
+  (plus 081-a→084-b) is now self-contained and terminal — derivation KCs house
+  mathematical dependency as content and gate nothing practical.
+  (2) CUT 084-a→095-a/b (**evaluation-suffices test**: a correct table is repeated
+  substitution and a correct graph follows from plotting two evaluated points —
+  expression evaluation is 6.EE prior knowledge, plotting docks from the C18
+  coordinate frame; form-interpretation is not required, and requiring the
+  plot-intercept-use-rate method would violate C1). Both keep their production
+  special-case feeders (088-b/c).
+  (3) CUT 084-a→085-a, adjudicated *against* the family-completeness alternative
+  (adding 084-a→085-n/o/p): **Bill's diagnosis is that 084-a is more in the nature
+  of a SCHEMA than a KC** — "interpret the form as defining a linear function" is
+  concept-level understanding, which §3 houses at schema level. Cut provisionally
+  in anticipation of resolving that. OPEN QUESTION recorded on LF-084-a
+  (annotation): demote to a literal performance, absorb into the
+  linear-function-properties schema description, or split into assessable atoms.
+- **Consequences:** frame 62 KCs / 78 edges; 084-a now in {084-d}, out {084-b,
+  084-c, 084-h, 099} — degree outlier resolved. TWO NEW LEGAL ISLANDS split off:
+  {088-b→095-b} (make tables, PR→LF) and {088-c→095-a} (make graphs, PR→LF), whose
+  only tie to the main component had been 084-a's cut out-edges. Consistent with
+  C18 (roots 088-b/c already justified docking points) and with the C4/C5 lesson
+  that production KCs are rarely prerequisite to anything: production strands
+  naturally form docking-anchored islands. Frame components now 53+2+2+2+2+1;
+  validates all-4 offline and via live API.
+- **Rule candidates:** the evaluation-suffices test (an edge into a
+  production-from-equation KC fails if substitution alone yields a correct
+  product); production strands forming islands is expected structure, not defect.
+  The 084-a KC-vs-schema question stays OPEN — first entry in that category since
+  the C10 placeholder test.
+- **Backup:** `bak_084a_neighborhood_20260721_072320`.
+
+## C21 — Completing the problem-solving PR→LF family; an example is not a prerequisite (Standards §4; detectors: parallel-structure gaps, family asymmetry)
+
+- **Finding (2026-07-21, AI smell pass #1, Q5):** the special-case-before-general
+  PR→LF families were complete everywhere (compare, represent, interpret-points,
+  determine-rate, construct) EXCEPT problem-solving: 098 (use a linear model to
+  solve problems) had no edge from 093-e (solve for unknown values in a PR — 098's
+  performance in the b = 0 special case). Instead it had 093-c (simple interest) →
+  098, added 2026-07-02 on the observation that an interest balance is itself
+  linear.
+- **Adjudication (Bill approved):** ADDED 093-e→098 (C7 completeness; the strict
+  counterfactual is near-airtight — solving y = mx + b for an unknown without being
+  able to do it in y = kx has no non-edge-case instances). CUT 093-c→098: linearity
+  of interest balances makes interest an *example* of a linear model, not a
+  prerequisite for using one — C17's curricular-story-as-edge in miniature. The
+  asymmetry was the tell: no reason interest alone, among 093-a/b/c/d, would feed
+  098.
+- **Consequences:** 093-c a sink — all four applying-PR KCs now uniformly terminal
+  contextual performances; 098 in-edges {085-b, 085-c, 093-e} (interpret the
+  parts + the special-case atom). Frame stays 62 KCs / 78 edges (swap), components
+  53+2+2+2+2+1, validates all-4 offline and live. All five questions from AI smell
+  pass #1 are now resolved or explicitly deferred (Q4 → the 084-a open question).
+- **Backup:** `bak_q5_098_feeders_20260721_073923`.
 
 ---
 

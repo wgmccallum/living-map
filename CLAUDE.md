@@ -26,8 +26,13 @@ A visual editor for managing Knowledge Components (KCs) in a DAG structure for m
 Frames are validated for:
 - **Convexity**: Each schema's atom set must be convex in the DAG
 - **Laminarity**: Schema atom sets must be either disjoint or nested (not partially overlapping)
-- **Connectedness**: The KC graph must be connected
 - **Acyclicity**: No cycles in prerequisite edges
+
+> **Connectedness is NOT a validity requirement** (policy changed 2026-07-21, see
+> FRAME_AUTHORING_STANDARDS.md §4 / casebook C18): a frame may contain disconnected
+> islands as long as every component's roots are justified docking points for other
+> frames. `validate_frame` (frame_engine.py) checks only the three above plus
+> downward closure; connectedness should be *reported* per-component, not gated on.
 
 ### Quotient Operation
 Collapse schemas into single nodes. Sequential quotienting supported — collapsing a parent auto-includes child schemas. Convexity violations are caught and shown inline.

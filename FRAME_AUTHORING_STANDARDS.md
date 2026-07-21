@@ -189,11 +189,23 @@ intermediate KC or a reconnected chain, not deletion of the edge.
 - **placeholder** — the dependency is real but its development is deliberately
   deferred to another frame (recorded as such, with the destination frame named).
 
-**Roots policy.** A KC with no in-frame prerequisites is a claim that its
+**Roots and islands policy.** A KC with no in-frame prerequisites is a claim that its
 prerequisites live *outside the frame*. Roots must be justified as genuine docking
 points for other frames — the places where a prior frame's content is expected to
 connect. An accidental root, created by cutting edges, must be either justified or
 rewired.
+
+The same reasoning extends to connectivity. **Connectedness is a property of the
+eventual map, not of a single frame**: a frame may contain disconnected islands, and
+an island is legal exactly when its roots are justified docking points. Disconnection
+is a *diagnostic*, not a violation — it signals either missing edges (fix in-frame) or
+a missing frame (record the expected frame in the boundary schemas' descriptions and
+move on; do not patch the island to the main component with an edge that fails the
+counterfactual test). In the limit a single KC may be deliberately isolated, when it
+is at once a justified docking root and a justified terminal performance. A cluster
+held onto the main component only by edges that fail the counterfactual test is the
+signature of a missing frame (casebook C18). Validation should *report* components
+and check their roots against the justified list, not gate on connectedness.
 
 ---
 
@@ -217,6 +229,12 @@ rewired.
   collapsed to a single node. When splitting a multi-family leaf into finer leaves
   would create such a path, the families stay together: do not subdivide if the
   split would break convexity.
+- **A schema-quotient cycle is a schema smell, not (only) an edge smell.** When
+  correcting edge directions creates a cycle in the schema-level quotient while the
+  KC graph stays acyclic, suspect that a family is sitting in the wrong schema —
+  typically a terminal diagnostic layer lodged inside a concept schema (the inverse
+  of the misplaced-bridge-content case). Move the family to its own leaf rather than
+  sacrifice edges that pass the counterfactual test (casebook C19).
 - **Schema descriptions carry the concept-level meaning** that KCs must not (§3), plus
   curriculum references and, for boundary schemas, a statement of what frame is
   expected to dock there.
