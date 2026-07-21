@@ -129,7 +129,11 @@ exhibits the unit rate on the graph; unit-rate-as-slope works because slope is
 itself a per-one reading); they must not leak into loose synonymy elsewhere
 ("unit rate or constant of proportionality"). A global search-and-replace is
 exactly the wrong tool: classify each occurrence by its object. Precedent:
-casebook C23.
+casebook C23. When the distinction raises the question of the concepts *as
+objects*, the resolution is structural, never lexical: identifications between
+terms live in bridge KCs, meanings live in schema descriptions, and neither
+"define X" nor "distinguish the terms" is an assessable performance (casebook
+C24).
 
 **Sibling KCs get parallel wording.** Parallelism across a family is a feature, and
 its absence is an audit signal (§7).

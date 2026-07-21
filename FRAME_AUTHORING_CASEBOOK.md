@@ -146,9 +146,9 @@ evidence patterns here are the calibration set.
   = the 4-KC decide family {088-a, 089-a/b/c}, redescribed as THE entry point / docking
   site from 6.RP/7.RP.1 prior knowledge.
 - Interim policy: roots = "prerequisites outside frame." Current justified roots
-  (updated by C14 2026-07-16, C18 and C19 2026-07-21): 084-d, 085-e/i/k/l, 088-b/c,
-  089-b, 090-a/b/c/d, 092-a/b, 093-e, LF-100. The policy now extends to islands —
-  see Standards §4 and C18.
+  (updated by C14 2026-07-16, C18 and C19 2026-07-21, C24 2026-07-21): 084-d,
+  085-e/i/k/l, 088-b/c, 089-b, 090-a/b/c/d, 092-a/b, 093-e, LF-100, LF-103. The
+  policy now extends to islands — see Standards §4 and C18.
 - Docking-site update (C14): the entry point from 6.RP/7.RP.1 is now the identify-k
   family {090-a/b/c/d} — the natural heirs of deleted LF-087 — plus 089-b; the decide
   family is a diagnostic layer just downstream of entry, not the doorway itself.
@@ -591,7 +591,9 @@ All three flags resolved 2026-07-16; none currently open.
   finer-grain KCs about the three concepts *as objects* and the identifications
   between them — the frame currently has only two bridge KCs (092-c, 094) covering
   parts of the triangle. Recorded as a frame-level open_question annotation on
-  `linear-functions`; to be discussed before any KCs are minted.
+  `linear-functions`; to be discussed before any KCs are minted. **RESOLVED same
+  day — see C24** (which also corrects this entry's bridge count: 099's clause was
+  already the triangle's third side).
 - **Q4 closed (same day, backup `bak_q4_cut_091_099_20260721_151019`):** 091→099
   CUT per Bill — no cognitive prerequisite; the edge was C16-split residue
   conjunctively claiming the bridge principle requires the *verbal-specific*
@@ -599,6 +601,65 @@ All three flags resolved 2026-07-16; none currently open.
   091→085-a. Frame 61 KCs / 73 edges / 15 schemas, components 52+2+2+2+2+1,
   validates all-4 offline and live. All smell-pass-1 questions are now fully
   resolved; the frame's sole open question is the C23 three-concept thread above.
+
+## C24 — The three-concept thread resolved: triangle inventory, two minted bridges, and the no-define-KCs ruling (Standards §3; closes C23's open thread)
+
+- **Analysis (2026-07-21, AI smell pass #2 follow-on; Bill adjudicated D1–D5 one at
+  a time):** inventory of the unit rate / constant of proportionality /
+  rate-of-change(slope) triangle found **all three identifications already present**
+  — 092-c (unit rate = k, graph exhibit), 094 (unit rate = slope), and 099's
+  k-= -rate-of-change clause — correcting C23's "only two bridges" count. The real
+  gaps were two missing *coverage* KCs and one boundary item, found by running C7
+  special→general completeness over the bridge/interpretation layer.
+- **D1 — minted LF-103** "Interpret the constant of proportionality in terms of the
+  situation it models" (interpreting-proportional-relationships leaf, now 4 KCs).
+  Gap evidence: 085-b (interpret rate of change in context) had special-case PR
+  feeders for every other family but none here — the identify family's "state with
+  units" is extraction, not interpretation, and 092-c covers only the graphical
+  exhibit. Out-edge 103→085-b completes the C7 family. Deliberately a **root**
+  (context-reading prior knowledge, like 085-e): by the marked-vs-determined
+  counterfactual (C18) the constant arrives identified; the C5-style 090-d feeder
+  was considered and not taken. Backup `bak_c23_mint_103_20260721_154243`.
+- **D2 — minted LF-104** "Interpret the rate of change as the slope of the graph of
+  a linear function" (linear-function-properties leaf, now 6 KCs) — the "forward
+  generalization to rate-of-change-as-slope" that C23 itself invoked to justify
+  keeping "unit rate" in 094, which did not exist as a KC (the identification was
+  carried only by 085-h's "(slope)" parenthetical and one clause of 099). Wiring
+  mirrors 094: in-edges {094 (special-case-before-general, un-sinks 094),
+  085-h (embedded extraction atom, C8 reasoning mirroring 090-b→094)}; no direct
+  LF-100 edge (the C15 know-what-slope-is requirement arrives transitively via
+  094); sink like the other bridges. Backup `bak_c23_mint_104_20260721_154602`.
+- **D3 — deferred** the representation-independent unit-rate = k bridge to the
+  future Ratios & Rates frame (C18 missing-frame playbook): its unit-rate half
+  belongs to the frame LF-087 was exiled to (C10), and a straddling KC would repeat
+  087's boundary problem. Recorded as expected docking content in
+  representing-proportional-relationships' boundary note; this frame carries only
+  the graph-anchored exhibit (092-c). Backup `bak_c23_d3_boundary_20260721_154728`.
+- **D4 — 099's grain confirmed:** the identification stays a clause of the bridge
+  principle. Its two atoms (PR ⊂ linear-with-b-0; k = m under that inclusion) are
+  not task-separable — splitting would mint a §8.2 task-indistinguishable
+  duplicate — and the atoms-already-exist test does not dissolve it (085-j/090-c
+  extract the two numbers separately, but the identification exists nowhere else).
+  Rationale annotation on 099.
+- **D5 — negative ruling on concepts-as-objects (the rule):** a concept-as-object
+  question resolves *structurally, never lexically* — identifications between terms
+  are bridge-KC content, meanings are schema-description content, and neither
+  "define X" nor "distinguish the terms" is an assessable performance ("define X"
+  is the C12 flat-parser fingerprint and the §3 concept-proxy smell; the frame
+  deliberately has no Definition-type KC — its working definition 084-d is a
+  Principle stating a performance). Added to Standards §3.
+- **Consequences:** frame **63 KCs / 76 edges / 15 schemas**, components
+  54+2+2+2+2+1 (both mints in the main component); justified roots = the C10 list
+  **plus LF-103** (17 total). Frame-level open_question RESOLVED (resolution
+  recorded as a frame rationale annotation); leaf descriptions updated
+  (interpreting-PR now names 103; properties' bridge list now 094/099/104).
+  Validates all-4 offline after each change set. Earlier the same day, smell pass
+  #2's five description-level findings were applied (099 sentence-2 cut, 093-d
+  "prior KCs" reword, 098 parenthetical cut, 001-d steepness clause, docking notes
+  on the four root-holding schemas C18 missed — backups `bak_p2q1..p2q5_*`); no new
+  principle emerged from that pass, so it has no casebook entry of its own.
+- **Backups:** `bak_c23_mint_103_20260721_154243`, `bak_c23_mint_104_20260721_154602`,
+  `bak_c23_d3_boundary_20260721_154728`, `bak_c23_d5_closeout_20260721_155421`.
 
 ---
 
