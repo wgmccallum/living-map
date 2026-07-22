@@ -663,5 +663,194 @@ All three flags resolved 2026-07-16; none currently open.
 
 ---
 
+## C25 — First §8 stress test: the IM curriculum walk (Standards §8.1; validates C14/C18/C19/C22/C24; new sweep lesson)
+
+- **Date / adjudicator:** 2026-07-22, Bill (items A1–A6, one at a time). Full
+  results table: `FRAME_STRESS_TESTS_LINEAR_FUNCTIONS.md`.
+- **Setup:** the §6.3/§7 smell-pass cycle was declared converged (pass #2 found
+  zero structural defects), so the frame moved to §8. Walked IM 6–8 v.IV (G7U2,
+  G7U4, G8U2, G8U3, G8U5 — 81 lessons, teacher-facing goals as the mapping unit)
+  from the 2026-07-20 Content-API snapshot; coverage claims verified against
+  practice problems, activities, cool-downs, and unit assessments.
+- **Sequence result: PASS — no edge falsified by teaching order.** The signature
+  finding: IM teaches decide-proportional-from-graph (G7U2 L10) *before*
+  identify-k-from-graph (L11). The pre-C14 edge 089-b→090-b would have been
+  consistent with IM's order, but the C14 *reversal* (090-b→089-b) would have been
+  falsified — the cut (neither direction) is exactly what the curriculum supports.
+  C19, C22, C18's islands, LF-100→094, and both C24 mints likewise confirmed
+  against independent curricular reality. Two concurrencies recorded, not
+  violations (LF-100/081-a in G8U2 L10; 084-d/099 at G8U3 L5 — revisit the latter
+  only if §8.2 shows decide-without-state).
+- **Coverage adjudications:** **A1 minted LF-105** (reciprocal constants y=kx /
+  x=(1/k)y — a full IM lesson, G7U2 L5, with no KC and no recorded exclusion; in
+  {091} per C8, sink). **A2 minted the pair LF-106/107** (same-axes graph×graph
+  comparison; a full IM lesson goal, G7U2 L12 "steeper line has greater k";
+  marked-vs-determined makes 106 a ROOT — steepness needs no extraction; 106→001-c/d
+  and 107→097-a/b are C8 embedded-atom edges under the existing "(which line is or
+  would be steeper)" clauses; 106→107 special-case-first). **A3/A4/A6 recorded, no
+  mints:** x=a lines excluded as non-functions (scope note on
+  slope-and-linear-equations); Linear Equations & Systems added to the
+  missing-frame ledger (downstream; feeding surface 081-c/084-h/085-j/k/095-a/b);
+  the function concept ruled to live in TWO incarnations bracketing the frame —
+  informal precursor in Coordinate Plane & Covarying Quantities, formal treatment
+  (F-IF) in a later Functions frame. **A5 kept 085-m/085-p unchanged.**
+- **Method lesson (the A5 correction):** the walk initially declared 085-m/085-p
+  curriculum-untouched; Bill's challenge ("IM passed EdReports — dig deeper")
+  overturned it. 085-m is assessed in the G8U5 Mid-Unit Assessment (cost table
+  with no x=0 row → find the one-time fee, i.e. 8.F.4's "two (x,y) values,
+  including reading these from a table"); 085-p appears in the given-intercept
+  special case, with general position deferred to IM Geometry U6. **Rule: a
+  coverage claim ("no curriculum touches this KC") must sweep unit assessments and
+  representation-disguised task forms (a "two points" performance can present as a
+  table) before it counts as evidence.** Goal-level, task-level, and
+  assessment-level touch are different strengths and should be reported as such.
+- **Consequences:** frame **66 KCs / 82 edges / 15 schemas**, components
+  57+2+2+2+2+1, justified roots = the C24 list plus LF-106 (**18 total**).
+  Validates all-4 offline + live after each change set. §8.2 carry-forwards:
+  generate 085-p's general-position task with care (no G8 curricular model);
+  085-l vs LF-100 task-distinguishability still on the weak-finds list; watch
+  084-d→099 for decide-without-state evidence. Metadata gaps found: LF-093-e has
+  no kc_type annotation; the 097 family has no language-demand rows.
+- **Backups:** `bak_a1_mint_105_20260722_122058`,
+  `bak_a2_mint_106_107_20260722_122804`, `bak_a3_vertical_lines_note_20260722_123335`,
+  `bak_a4_leqs_ledger_20260722_123615`, `bak_a5_record_085mp_20260722_124215`,
+  `bak_a6_functions_ledger_20260722_124701`.
+
+---
+
+## C26 — Second §8 stress test: task generation and edge falsification (Standards §3 "state the given", §8.2; completes the 089-b/084-g mirror)
+
+- **Date / adjudicator:** 2026-07-22, Bill (flags F1, G1, G2, one at a time).
+  Full task tables and edge-by-edge verdicts: `FRAME_STRESS_TESTS_LINEAR_FUNCTIONS.md`.
+- **Phase 1 (every Skill yields a task; duplicates):** PASS 60/60 Skills; 084-b's
+  tasklessness is the recorded placeholder exemption. One duplicate flag: **F1,
+  085-l vs LF-100** — task-indistinguishable under bare stimuli (same
+  computation). Bill: keep both + sharpen; both longs now name their objects (a
+  function's rate of change in context vs the slope of a line as a geometric
+  figure) and cross-reference each other. The wiring-differential logic (C16) run
+  in reverse: distinct strands (modeling lattice vs derivation strand) justify
+  two KCs over one merged strand-straddler.
+- **Phase 2 (edge falsification by task, all 82 edges):** 78 hold, mostly by two
+  named arguments now available for reuse — **embedded-atom** (every B-task
+  contains an A-step, C8 operationalized) and **task-subsumption** (the
+  special-case A-task IS a member of B's task class, C7 operationalized). A
+  third observation: **no-method-restriction can rescue an edge** — 106→001-c/d
+  survive because 106's own task class admits the extraction method, so a
+  B-able-A-unable student cannot be constructed. The §8.1 watch on 084-d→099
+  resolved positively (any legitimate 099 task forces the initial-value feature
+  into the justification).
+- **G1 — 084-d→084-g CUT (falsified by task):** "decide from graphs + justify"
+  is fully answerable by straightness recognition (8.F.3's own equivalence)
+  without stating the defining features. C19 had already left 084-g without a
+  rate feeder; this removed its last in-edge. **084-g is now the frame's second
+  deliberately isolated KC (degree 0)** — the exact LF-side mirror of 089-b
+  (C14/C18): visual-criterion terminal diagnostic, graph-literacy prerequisites
+  docking from Coordinate Plane & Covarying Quantities. The decide-from-graph
+  KCs of BOTH families are now structurally identical, which reads as
+  confirmation the pattern is real rather than coincidental.
+- **G2 — interpret-family feeders KEPT; the dispute was a description defect.**
+  Under marked-vs-determined (C18, C24-D1), 090-b→092-c / 085-j→085-b /
+  085-k→085-c looked inconsistent with 103's no-feeder ruling. Bill's
+  resolution: keep all three and **clarify each KC to state its given**. 085-b/c
+  narrowed to "given by an equation" (matching their 2026-07-13 wiring; the rate
+  and initial value are named but arrive unlocated → extraction feeders are
+  real); 092-c's given was already the graph (the point must be located on it);
+  103's given already includes the constant identified (D1 stands untouched).
+  New principle extracted to Standards §3 ("State the given"): what is given
+  settles whether an extraction feeder applies; an ambiguous given makes wiring
+  disputes out of description defects.
+- **Consequences:** frame **66 KCs / 81 edges / 15 schemas**, components
+  56+2+2+2+2+1+1, 19 justified roots (+084-g). Validates all-4 offline + live
+  after each change set. §8.2 status: **PASSED**. Carried to §8.3/§8.4: G3 note
+  (090-d→093-a/b/c/d hold through the percent-language reading — partial
+  re-docking expected when Ratios & Rates arrives); metadata gaps (093-e
+  kc_type, 097-family language demands) still open for a mechanical fix.
+- **Backups:** `bak_f1_sharpen_085l_100_20260722_144356`,
+  `bak_g1_cut_084d_084g_20260722_145251`, `bak_g2_state_the_given_20260722_150724`.
+
+---
+
+## C27 — Third §8 stress test: the fresh-reader mathematical audit (Standards §3 "repair by refinement"; validates C17 externally; the converse-theorem repair)
+
+- **Date / adjudicator:** 2026-07-22, Bill (items H1–H6, one at a time). Auditor:
+  an AI instance with NO authoring context — content dump only (KC statements,
+  edges with the one-line cognitive semantics, schema descriptions); no
+  casebook, no Standards, no annotations. Full report + triage:
+  `FRAME_STRESS_TESTS_LINEAR_FUNCTIONS.md` §8.3.
+- **Overall verdict (auditor):** "a well-constructed map … none [of the defects]
+  reflects a wrong conception of the mathematics." It independently re-derived
+  the 085-l/LF-100 distinction ("genuinely careful"), the compare families'
+  graph/no-graph wiring ("exactly right"), and the special-case-first lattice.
+- **Dissolved findings (2)** — expected fresh-reader readings answered by
+  decisions it could not see: routing 084-b's fact to its downstream consumers
+  (dissolves against C17: edges are cognitive, not logical — the C20 principle);
+  099's "(slope)" parenthetical as unrouted (dissolves against C23/D4). METHOD
+  LESSON: the one-line edge semantics in the dump did not convey C17; future
+  fresh-reader packages must state the cognitive-vs-mathematical distinction
+  explicitly.
+- **H1 — the placeholder's IOU named the wrong theorem.** 084-b's note said the
+  deferred justification "rests on similarity of slope triangles" — describing
+  the AA direction (line ⇒ constant slope), which IS LF-081-a. What is owed is
+  the CONVERSE (solutions of y = mx + b are collinear; SAS: equal slopes ⇒
+  proportional legs + common right angle ⇒ similar ⇒ collinear). Reworded
+  (084-b long + boundary note), keep the support edge; reference recorded:
+  McCallum, "What makes a line straight?"
+  (mathematicalmusings.substack.com/p/what-makes-a-line-straight), which proves
+  both theorems. RULE OF THUMB: a placeholder must name the *specific* theorem
+  owed, precisely enough that the receiving frame cannot discharge the debt
+  with a neighboring theorem.
+- **H2 — production edges falsified by given-switching; repaired by refinement.**
+  088-b/c (make table/graph, words-given) → 095-a/b (equation-given) switched
+  starting material mid-edge, defeating task-subsumption. Bill's ruling: not
+  cut, not reword — DECREASE GRAIN: minted LF-108/109 (graph/table a PR given
+  y = kx; roots by evaluation-suffices, COP&CQ dock), rewired 108→095-a,
+  109→095-b (same-given special-case-first), narrowed 088-b/c to words-given;
+  they become standalone diagnostics (with 089-b, 084-g: four now). Not minted
+  (wiring-differential fails): table-given variants, LF-from-words (decomposes
+  per C26's move).
+- **H3 — 090-d→093-b cut on the third look.** Percent change/error is
+  masterable as fraction procedures without naming a constant from a verbal
+  description; kept 2026-07-06/16 pre-instrument, borderline in §8.2 (G3), cut
+  when the fresh reader independently sharpened it. 093-a/c/d keep their edges
+  (percent/interest language genuinely is multiplier language; d confirmed by
+  Bill 2026-07-16).
+- **H4 — a deferred bridge must live where it is statable.** The D3 note
+  assigned "k = unit rate" to Ratios & Rates, which cannot state it (k is this
+  frame's 7.RP.2 concept — dependency inversion). Note reworded: the bridge is
+  a future mint IN THIS FRAME once R&R exists — matching the frame's own
+  pattern (identifications live in the later frame: 092-c, 094, 099, 104).
+- **H5 — sign ambiguity repaired by refinement + integration.** "Greater
+  constant (steeper line)" is false for negative constants; "greater rate of
+  change" flips between value-order and steepness for mixed signs. Bill's
+  ruling: sign-split KCs + integrating schema. New leaf **Direction of Change**
+  (sign = direction, magnitude = steepness; value vs steepness comparisons
+  agree exactly when both rates are positive — integration deliberately
+  schema-level per D5); minted LF-110/111/112 (positive/zero/negative; in
+  {085-j} each per C26's unlocated-given logic, bundled across presentations
+  per Bill with the one-sided feeder recorded as accepted C16 tension; 110/112
+  → all four LF compares, 111 sink). Wording: positivity clause on
+  graph-involving PR compares (001-c/d, 106); values clause on all four LF
+  compares.
+- **H6 — two false clauses.** 084-d: one-condition criterion (constant rate)
+  was dressed as a two-part check; reworded (initial value = second parameter,
+  domain caveat). 085-j/090-c: "the coefficient of the independent variable"
+  was a method prescription AND false for admitted rewritable forms; Bill cut
+  the clauses entirely rather than qualify them ("determine the rate" /
+  "identify k", no method).
+- **Consequences:** frame **71 KCs / 91 edges / 16 schemas**, components
+  59+2+2+2+2+1+1+1+1, 21 justified roots, four standalone diagnostics
+  (084-g, 088-b, 088-c, 089-b). Validates all-4 offline + live after each
+  change set. §8.3: **PASSED**. New Standards §3 principle **"Repair by
+  refinement"** (from H2+H5: when a defect traces to bundled heterogeneous
+  cases, split rather than cut or qualify; a small schema holds the
+  integration). Metadata gaps still open: 093-e kc_type; language demands
+  missing for 095-a/b and the 097 family.
+- **Backups:** `bak_h1_084b_converse_20260722_171807`,
+  `bak_h2_production_split_20260722_174422`, `bak_h3_cut_090d_093b_20260722_174711`,
+  `bak_h4_bridge_address_20260722_180909`, `bak_h5_direction_of_change_20260722_182434`,
+  `bak_h6_wording_20260722_182823`.
+
+---
+
 *Add entries in the same format. Every substantive change to the standards document
 should cite its entry here.*

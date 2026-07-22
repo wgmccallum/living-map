@@ -138,6 +138,28 @@ C24).
 **Sibling KCs get parallel wording.** Parallelism across a family is a feature, and
 its absence is an audit signal (§7).
 
+**State the given.** A KC statement names a performance *on a stimulus*, and the
+stimulus must be explicit: "given the equation of a linear function…", "given the
+graph of a proportional relationship…". What is given settles wiring questions
+that the performance alone cannot: an interpretation KC takes an extraction
+feeder exactly when its object is named but arrives *unlocated in the given*
+(the rate of change of a given equation must be found before it can be
+interpreted), and takes none when the object arrives already exhibited or
+identified (a marked intercept point, an identified constant — the
+marked-vs-determined counterfactual). An ambiguous given makes the same KC read
+as both, and the wiring dispute that follows is really a description defect.
+Precedent: casebook C26.
+
+**Repair by refinement.** When an edge is falsified or a statement is ambiguous
+because a KC bundles heterogeneous cases — givens that switch mid-edge, sign
+cases that reverse an ordering — the first repair to consider is finer grain,
+not deletion or a qualifying clause: split the KC (or mint the missing
+parallel variants) so that every edge connects like to like and every statement
+is true of its whole case. The structure was usually right; the grain was
+wrong. A small schema can hold the integration the split would otherwise lose.
+Precedent: casebook C27 (production KCs split by given; sign-of-rate KCs with
+an integrating schema).
+
 ---
 
 ## 4. Edge semantics
