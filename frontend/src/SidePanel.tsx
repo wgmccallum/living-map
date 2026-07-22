@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { api, type KC, type Edge, type Frame, type Schema, type Annotation, type QuotientResult, type MathDomain, type MathDomainEdge } from "./api";
+import { AnnotationsList } from "./AnnotationsList";
 
 const ALL_DEMANDS = [
   "Speaking",
@@ -77,7 +78,7 @@ export function SidePanel({ selectedNodeId, kcs, edges, frame, onSelectNode, onD
       setAncestors([]);
       setDescendants([]);
       setSchemas([]);
-      setAnnotations([]);
+      api.getAnnotations("schema", schemaId).then(setAnnotations).catch(() => setAnnotations([]));
       if (frame) {
         api.getSchemaAtoms(frame.id, schemaId).then(setAtomSet).catch(() => setAtomSet([]));
         api.checkConvexity(frame.id, schemaId).then(setConvexity).catch(() => setConvexity(null));
@@ -476,6 +477,8 @@ export function SidePanel({ selectedNodeId, kcs, edges, frame, onSelectNode, onD
               </div>
             </div>
           )}
+
+          <AnnotationsList annotations={annotations} />
 
           {/* Delete schema */}
           {(() => {
@@ -1099,6 +1102,8 @@ export function SidePanel({ selectedNodeId, kcs, edges, frame, onSelectNode, onD
         <div className="detail-label">Status</div>
         <div className="detail-value">{kc.metadata_status}</div>
       </div>
+
+      <AnnotationsList annotations={annotations} />
 
       {/* Delete KC */}
       <div className="detail-row danger-zone">

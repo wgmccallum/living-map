@@ -1379,3 +1379,51 @@ body {
 .action-btn.action-create_edge:hover {
   background: #d77620;
 }
+
+/* Annotations display (side panel + frame notes panel) */
+.annotation-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 340px;
+  overflow-y: auto;
+}
+.annotation-item {
+  border-left: 3px solid #e0e0e0;
+  padding-left: 8px;
+}
+.annotation-item .tag {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+.annotation-content {
+  font-size: 12px;
+  color: #444;
+  margin-top: 3px;
+  white-space: pre-wrap;
+  line-height: 1.45;
+}
+.annotation-meta {
+  font-size: 10px;
+  color: #999;
+  margin-top: 2px;
+}
+.frame-notes-panel {
+  margin-top: 6px;
+  background: #fafafa;
+  border: 1px solid #e5e5e5;
+  border-radius: 4px;
+  padding: 8px;
+}
+.frame-notes-panel .detail-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #888;
+  margin-bottom: 6px;
+}

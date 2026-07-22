@@ -114,6 +114,9 @@ export interface Annotation {
   entity_id: string;
   annotation_type: string;
   content: string;
+  author?: string | null;
+  created_at?: string;
+  resolved_at?: string | null;
 }
 
 export interface ConvexityViolation {

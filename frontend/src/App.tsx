@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import { api, currentSandboxId, exitSandbox, type KC, type Edge, type Frame, type Schema, type Stats, type ValidationReport, type QuotientResult, type ConvexityViolation, type LaminarityViolation, type MathDomain, type MathDomainEdge } from "./api";
+import { api, currentSandboxId, exitSandbox, type KC, type Edge, type Frame, type Schema, type Stats, type ValidationReport, type QuotientResult, type ConvexityViolation, type LaminarityViolation, type MathDomain, type MathDomainEdge, type Annotation } from "./api";
+import { AnnotationsList } from "./AnnotationsList";
 import { DAGView, type DAGViewHandle } from "./DAGView";
 import { MathDomainsView } from "./MathDomainsView";
 import { TopologyDiagnosticsView } from "./TopologyDiagnosticsView";
@@ -61,6 +62,8 @@ export function App() {
   const [edges, setEdges] = useState<Edge[]>([]);
   const [frames, setFrames] = useState<Frame[]>([]);
   const [activeFrame, setActiveFrame] = useState<Frame | null>(null);
+  const [frameAnnotations, setFrameAnnotations] = useState<Annotation[]>([]);
+  const [showFrameNotes, setShowFrameNotes] = useState(false);
   const [stats, setStats] = useState<Stats | null>(null);
   const [validation, setValidation] = useState<ValidationReport | null>(null);
 
@@ -200,6 +203,16 @@ export function App() {
   useEffect(() => {
     if (activeFrame) {
       api.validateFrame(activeFrame.id).then(setValidation);
+    }
+  }, [activeFrame?.id]);
+
+  // Load frame-level annotations (ledger notes, resolutions) when the frame changes
+  useEffect(() => {
+    setShowFrameNotes(false);
+    if (activeFrame) {
+      api.getAnnotations("frame", activeFrame.id).then(setFrameAnnotations).catch(() => setFrameAnnotations([]));
+    } else {
+      setFrameAnnotations([]);
     }
   }, [activeFrame?.id]);
 
@@ -384,6 +397,23 @@ export function App() {
               <option key={f.id} value={f.id}>{f.name}</option>
             ))}
           </select>
+          {frameAnnotations.length > 0 && (
+            <>
+              <button
+                className="toolbar-btn"
+                style={{ marginTop: 6 }}
+                onClick={() => setShowFrameNotes((v) => !v)}
+                title="Frame-level notes: missing-frame ledger, design resolutions, open questions"
+              >
+                {showFrameNotes ? "Hide" : "Show"} frame notes ({frameAnnotations.length})
+              </button>
+              {showFrameNotes && (
+                <div className="frame-notes-panel">
+                  <AnnotationsList annotations={frameAnnotations} label="Frame notes" />
+                </div>
+              )}
+            </>
+          )}
           {activeFrame && (
             <button
               className="toolbar-btn"
