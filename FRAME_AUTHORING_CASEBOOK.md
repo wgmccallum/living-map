@@ -854,3 +854,51 @@ All three flags resolved 2026-07-16; none currently open.
 
 *Add entries in the same format. Every substantive change to the standards document
 should cite its entry here.*
+
+## C28 — Fourth §8 stress test: the pedagogical audit (Standards §8.4; demand vocabulary is frame-relative; the easy-instance-rung repair)
+
+- **Setup (2026-07-23):** §8.4 run on the 71-KC post-C27 frame by a fresh reader
+  (no authoring context), per the C27 pattern. The packet carried the C17
+  cognitive-vs-mathematical distinction up front (C27's method note) — it worked:
+  no findings wasted on Principle gating. New method note for next time: also
+  state the two kinds of roots (docking vs first-encounter); the auditor
+  misread 084-d's root status as "students arrive knowing the definition."
+- **Sorting:** ten findings dissolved against existing records (A2/C18 root
+  justifications, G1/H2 isolation rationales, C24-D4 bridge semantics, C20
+  evaluation-suffices for the twice-flagged 095-a feeders — now recorded on the
+  KC); six survived to adjudication (all resolved by Bill same day); one
+  previously-settled tension (H5's presentation bundling on 110–112) was
+  REOPENED by Bill and parked — independent re-derivation of a recorded
+  tension's cost is grounds to revisit, not just validation.
+- **The vocabulary principle (from P2):** the language-demand vocabulary is
+  shared across the atlas, but WHICH tags discriminate is frame-relative, and
+  each frame declares its tags and rules. Speaking and Reading-vs-Listening
+  discriminate in Counting Numbers (oral performance is the task; not all
+  students read); in Linear Functions, Reading fired on every tagged KC (49/49
+  — an adornment) and Speaking was vestigial (3). LF rubric, keyed to each KC's
+  stated given and deliverable (C26 makes demands derivable): Reading = verbal
+  given; Interpreting = representation given; Producing = representation
+  deliverable; Writing = prose deliverable; Speaking/Listening unused.
+  Full re-tag: 78 kept / 43 added (computed) / 66 removed; placeholders carry
+  no tags.
+- **The rung repair (from P3):** when a true edge (085-l→085-f/h held as EA in
+  C26's Phase 2) inverts instructional order because the prerequisite's stated
+  domain is harder than the dependents' typical instances, the fix is neither
+  cutting the edge nor rewording it away, but minting the missing easy-instance
+  rungs UNDER the dependents: LF-113 (unit-step table), LF-114 (whole-number-
+  labeled graph), LF-115 (x=0-present table), each a root with a same-given
+  special-case-first out-edge. Completes the repair toolkit: G1 cut a false
+  edge; H2 split a given-switching edge; C28 rungs a true-but-inverted edge.
+  Grain splits remain INPUT-structure splits, never method splits (C1/C16).
+- **Grain boundary (from P1):** 093-a/b stay coarse — the forward-vs-backward
+  percent split reaches into Ratios & Rates precursor territory; a frame
+  records a neighbor-frame-shaped grain question rather than importing it.
+  Bill's broader deferred question, recorded: has the frame already split too much?
+- **Completions:** LF-116 mints the table sibling of 104 (C23/C24
+  identifications pattern; 8.F.4's "or a table of values" clause now has a
+  home); P4 records the verbal comparison cells as deliberate C16 exclusions on
+  both comparison schemas; P6 trims 105's axis-exchange stowaway clause (the
+  §8.2 task never exercised it — task generation doubles as a grain detector).
+- **Result:** §8.1–8.4 all passed; frame release-ready per Standards §8 at
+  75 KCs / 95 edges / 16 schemas / 24 roots.
+- **Backups:** `bak_sec84_*` series, 2026-07-23.

@@ -14,7 +14,7 @@ all-4 offline + live. UNPUBLISHED relative to the 2026-07-21 publish.
 | §8.1 Curriculum walk | **PASSED — all six adjudication items resolved by Bill same day** (A1 mint LF-105; A2 mint LF-106/107; A3, A4, A6 recorded; A5 keep + corrected evidence) | 2026-07-22 |
 | §8.2 Task generation | **PASSED — 60/60 Skills yield tasks; no duplicates (F1 kept+sharpened); 82-edge falsification: 1 cut (G1: 084-d→084-g), G2 resolved by stating the given (casebook C26, Standards §3 addendum)** | 2026-07-22 |
 | §8.3 Mathematical audit | **PASSED — fresh-reader (no-context) audit; verdict "no wrong conception of the mathematics"; 2 findings dissolved vs C17/C23; six items H1–H6 all resolved by Bill same day (2 rewordings, 1 cut, 2 grain-decreasing mints+rewires, 1 note relocation); casebook C27** | 2026-07-22 |
-| §8.4 Pedagogical audit | not started | |
+| §8.4 Pedagogical audit | **PASSED — fresh-reader audit; findings dissolved against the record or resolved by Bill same day (P1 keep+defend; P2 frame-relative demands rubric, full re-tag; P3 easy-instance rungs 113/114/115; P4 record-no-mint; P5 mint 116; P6 trim); one item reopened and parked (110–112 presentation bundling); casebook C28** | 2026-07-23 |
 
 ---
 
@@ -790,3 +790,212 @@ with no context (the 085-l/LF-100 distinction praised as "genuinely careful";
 the comparison family's graph/no-graph structure "exactly right"; the
 special-case-first lattice sound), which is the strongest external validation
 the frame has received.**
+
+---
+
+## §8.4 Pedagogical audit (2026-07-23)
+
+Frame under test: 71 KCs / 91 edges / 16 schemas (post-H5 state). Run per the §8.3
+pattern: a **fresh reader** (AI instance, no authoring context) given a content
+dump — KC statements + types, the 91 edges, schema descriptions + membership, the
+recorded language demands, roots/sinks/isolated lists — and the five §8.4
+questions. Per the §8.3 method note, the packet this time INCLUDED the C17
+cognitive-vs-mathematical edge semantics up front (it worked: zero findings
+wasted on Principle-gating), plus the atlas context (docking roots legal).
+Packet: `audit_packet.md` (session scratchpad); full report in the session record.
+
+### Auditor's report (abridged headers)
+
+<details><summary>Finding headers (full text in session record)</summary>
+
+1.1 (major) 093-a/b an order of magnitude coarser than frame grain — six percent
+contexts + both directions bundled; backwards-percent invisible to the mastery bit.
+1.2 (minor) LF-105 bundles three performances (two equations, reciprocal
+recognition, axes-exchange coordination).
+1.3 (minor) 110/111/112 bundle equation+graph presentation against the frame's
+own split convention. 1.4/1.5 (obs) fine grain of 085/092 earns its keep; 093-e untyped.
+2.1 (major) language-demands hole: one contiguous block (auditor counted 21; the
+mechanical check says 22 — the auditor missed 089-c), including the most
+linguistically demanding KCs (093, 096, 097, 098, 099). 2.2 084-e/f/g/h omit
+Writing despite "justify"; mirror family 089 has it. 2.3 084-d Reading-only for a
+stating Principle. 2.4 089-b records spurious "Producing." 2.5 Speaking applied
+per-author, not per-rule (092 has it; 103/096 would not).
+3.1 (minor) both comparison families lack every verbal cell; 8.F.2/8.EE.5 name
+verbal; no recorded exclusion. 3.2–3.4 (obs) T+T/E+E compare absence, PR
+table↔graph absence, LF verbal→graph/table absence all judged deliberate and
+defensible. 3.5 (minor) interpret-in-context family: equation-pinned on LF side,
+agnostic on PR side, table cell nowhere; the one wobble in representation discipline.
+4.1 (minor) 106 root presumes in-frame vocabulary. 4.2 (minor) 108/109 roots
+undocumented. 4.3 (minor) 084-d definition-first root. 4.4 (minor) 084-g
+isolation undocumented while mirror 089-b's is. 4.5 (obs) all 34 sinks sound; no
+abandoned wiring. 4.6 (obs) 099 bridge invisible to graph-walkers.
+5.1 (major) entry gates dock against frames that don't exist yet — no remediation
+path below the 090 family until Ratios & Rates ships. 5.2 (major) 085-l→085-f/h
+(and 085-m→085-g) gate the rate region behind the hardest computation, inverting
+instructional order. 5.3 (major) high-fan-out nodes (085-j:7, 090-b:6, 090-d:6)
+concentrate lockout risk. 5.4 (minor) 110/112 gated only through equation-side
+085-j. 5.5 (minor) 095-a gated only by 108; 085-j/k not upstream. 5.6 (minor)
+isolated KCs need a surfacing rule. 5.7 (minor) 106 surfaceable day-one. 5.8
+(obs) 100/085-l zero-transfer twins; 084-b/093-e need machine-readable flags.
+
+Overall verdict: "well-architected … close to release-ready as a *map*. Not yet
+release-ready as an *adaptive gating graph*" — for the language-demands hole, the
+085-l gates, and the not-yet-existing docking frames.
+
+</details>
+
+### Verification triage
+
+**Dissolved against the record** (decisions the auditor could not see):
+
+- **1.3 + 5.4 (110/111/112 bundling; one-sided feeder)** — initially dissolved
+  against H5 (Bill adjudicated the bundling-across-presentations and the
+  one-sided 085-j feeder explicitly, recorded as accepted C16 tension; the
+  auditor independently re-derived the exact cost of that tension). **REOPENED
+  and PARKED by Bill 2026-07-23**: the independent re-derivation is grounds to
+  revisit rather than dissolve. Open question annotation on LF-110 (applies to
+  111/112): split by presentation, add 085-h as alternative feeder, or keep.
+- **4.1 + 5.7 (106 root)** — dissolves against A2/C18: marked-vs-determined
+  rationale annotation on the KC; §8.2's task for 106 uses plain language ("which
+  store charges more per pound"), so the vocabulary worry is a task-authoring
+  matter the frame already handles.
+- **4.2 (108/109 undocumented)** — rationale annotations exist on both KCs
+  (evaluation-suffices, COP&CQ dock). KC-level rationale is the frame's
+  documentation convention; the auditor could not see annotations.
+- **4.3 (084-d definition-first root)** — dissolves against C4/C10: roots mean
+  "no in-frame prerequisite," not "arrival knowledge." 084-d is a first-encounter
+  root on the justified list since C10's updates. **Method note for future §8.4
+  packets: state the two kinds of roots (docking vs first-encounter) explicitly —
+  this is the §8.4 analog of the C17 omission §8.3 flagged.**
+- **4.4 + 5.6's documentation half (084-g, 088-b/c isolation)** — G1 and H2
+  rationale annotations exist on all three; 089-b's schema-note mention is the
+  outlier, not the rule.
+- **4.6 (099 dead-end bridge)** — by design per C24-D4/C17: bridges carry
+  identifications; Principles gate nothing.
+- **5.5 (095-a missing 085-j/k gates)** — dissolves against C20
+  evaluation-suffices + no-method-restriction: 095-a's long says "for example by
+  plotting the y-intercept…" — the substitution method (compute two points, plot)
+  never extracts m or b, exactly the argument that made 108/109 roots. Flagged
+  now by BOTH fresh readers (§8.3 finding 1.2 aside, §8.4 finding 5.5), so a
+  rationale annotation on 095-a recording this defense is warranted
+  (description-only; see P-items).
+- **5.1 + 5.3 (docking frames absent; fan-out lockout)** — deployment-sequencing
+  observations, not frame defects: the atlas plan and islands policy already
+  record that gating waits for (or soft-gates until) the docking frames. Worth
+  carrying into any deployment spec; no frame change.
+- **3.2/3.3/3.4** — the auditor itself judged these deliberate; 3.4's one-line
+  schema-note suggestion folded into P4.
+- **1.5 (093-e untyped)** — the §8.1 mechanical flag; **FIXED 2026-07-23**
+  (kc_type=Skill annotation added; checkpoint
+  `living_map.db.bak_sec84_093e_kctype_20260723_060551`). All 71 KCs now typed.
+
+**Surviving items (P1–P6) — for Bill:**
+
+- **P1 (from 1.1) — 093-a/b grain. RESOLVED 2026-07-23: Bill adjudicated KEEP,
+  record the defense.** The forward-vs-backward split reaches into precursor
+  territory around ratios and rates and belongs, if anywhere, to the future
+  Ratios & Rates frame; the bundling matches 7.RP.3's own grain; these are
+  terminal application capstones whose machinery (proportional reasoning) is
+  carried by the 093-e feeder. Rationale annotations on both KCs.
+  Description-unchanged; annotation-only. Bill also noted, and deferred, the
+  broader question of whether the frame has already split too much.
+- **P2 (from 2.1–2.5) — the language-demands pass. RESOLVED 2026-07-23: Bill
+  adjudicated FRAME-RELATIVE RUBRIC + FULL RE-TAG.** Bill's diagnosis went past
+  the auditor's: the defect wasn't an abandoned pass but a vocabulary designed
+  for Counting Numbers (where Speaking and Reading-vs-Listening genuinely
+  discriminate) stretched over a frame where Reading fired on every tagged KC
+  (49/49 — pure adornment) and Speaking was vestigial (3). New principle: **the
+  demand vocabulary is atlas-shared, but each frame declares which tags
+  discriminate and by what rule.** LF rubric keyed to each KC's stated given and
+  deliverable (C26 makes demands derivable): Reading = verbal given;
+  Interpreting = graph/table/equation given; Producing = representation
+  deliverable; Writing = prose deliverable; Speaking/Listening unused. Applied
+  to all 71 KCs: 78 tags kept, 43 added (computed), 66 removed; end state
+  Interpreting 52, Writing 37, Reading 17, Producing 15; 084-b (placeholder)
+  deliberately untagged; all four auditor inconsistencies (2.2–2.5) settled by
+  rule. Frame-level rationale annotation. LF-105 tagged R+P+W per current text —
+  if P6 keeps the axis-swap clause, add Interpreting. Checkpoint
+  `bak_sec84_p2_langdemands_20260723_062735`.
+- **P3 (from 5.2) — the 085-l→085-f/h and 085-m→085-g gates. RESOLVED
+  2026-07-23: Bill adjudicated FIX BY DECREASING GRAIN — mint the easy-instance
+  rungs.** Another genuinely-in-frame grain issue (unlike P1's, which reached
+  into Ratios & Rates territory): the frame should capture the instructionally
+  earlier performances — unit-step tables, countable grid slopes — as KCs below
+  the general two-point computation. Applied: minted **LF-113** (rate from a
+  table whose inputs step by 1 — the rate is the common difference) and
+  **LF-114** (rate from a graph through labeled whole-number points — rise and
+  run readable from the grid), both Skills in
+  determining-rate-and-initial-value, both ROOTS (differencing/grid-reading
+  dock outside the frame; the given never forces the general quotient), with
+  same-given special-case-first out-edges 113→085-f and 114→085-h (C7/TS).
+  Deliberately NOT wired to 085-l (different given — the H2 precedent forbids
+  given-switching edges) nor to LF-100 (F1 keeps the function-rate and
+  geometric-slope strands distinct). Input-structure splits, not method splits
+  (C1/C16): either method stays legal on either KC. The §8.2 embedded-atom
+  verdicts on 085-l→085-f/h stand at full-mastery grain; an adaptive system now
+  has rungs to offer below 085-l. Language demands per the P2 rubric
+  (Interpreting only). Rationale annotations on 113/114/085-l. Checkpoint
+  `bak_sec84_p3_mint_113_114_20260723_063618`. **Addendum (same day, Bill):
+  minted the initial-value twin LF-115** (initial value from a table that
+  includes x = 0 — read directly; special-case-first out-edge 115→085-g; ROOT;
+  no 085-m feeder; graph-side twin deliberately not minted since 085-i already
+  IS the easy case and is already a root; checkpoint
+  `bak_sec84_p3_mint_115_20260723_064024`). Frame: **74 KCs / 94 edges / 16
+  schemas**, components 62+2+2+2+2+1+1+1+1, 24 roots; validates all-4 offline +
+  live (reload used; 142 nodes / 210 edges).
+- **P4 (from 3.1) — verbal comparison cells. RESOLVED 2026-07-23: Bill
+  adjudicated RECORD, NO MINT.** Scope notes added to both comparison schemas:
+  verbal-side comparisons (named by 8.EE.5/8.F.2) factor through extraction
+  (090-d / 085-d) followed by value comparison and would fail the
+  wiring-differential test (C16) — same reasoning as the absent T+T and E+E
+  cells; only the same-axes graph pairs (106/107) are distinct perceptual
+  performances. Also applied 3.4's fix: representing-and-interpreting's "mirror"
+  claim corrected to "partial mirror" with the words-given asymmetry spelled out
+  (verbal→graph/table at LF level decomposes via 085-a then 095-a/b, per H2).
+  Description-only. Checkpoint `bak_sec84_p4_verbal_exclusion_20260723_064348`.
+- **P5 (from 3.5) — interpret-from-table. RESOLVED 2026-07-23: Bill
+  adjudicated MINT.** **LF-116** "Interpret the rate of change of a linear
+  function as the constant difference in a table of values" — the table sibling
+  of 104, completing 8.F.4's "in terms of its graph or a table of values" and
+  consistent with the C23/C24 ruling that how-the-parameter-appears
+  identifications are real KCs. Skill, linear-function-properties; wiring
+  mirrors 104 (085-f→116 as 085-h→104; sink); no PR-side special-case in-edge
+  yet (the D3/H4 deferred bridge, when minted, wires to 116 on the 094→104
+  pattern — noted in 116's rationale); initial-value twin deliberately not
+  minted (115's statement already carries the x=0-row identification). Demands:
+  Interpreting + Writing. Frame: **75 KCs / 95 edges / 16 schemas**, components
+  63+2+2+2+2+1+1+1+1, 24 roots; validates all-4 offline + live (reload used;
+  143 nodes / 211 edges). Checkpoint `bak_sec84_p5_mint_116_20260723_064633`.
+- **P6 (from 1.2) — 105's third clause. RESOLVED 2026-07-23: Bill adjudicated
+  TRIM.** The axis-exchange coordination clause cut from 105's long — it was a
+  second, harder performance on the equation-writing KC, never exercised by the
+  §8.2 task, and closer to COP&CQ territory; IM G7U2 L13 stays covered by the
+  core content plus 102. The P2 demand tags (R+P+W) already matched the trimmed
+  statement. Rationale on the KC. Also recorded during closeout: the
+  twice-flagged 095-a defense (no 085-j/k feeders per no-method-restriction +
+  evaluation-suffices) as a rationale annotation on 095-a. Description-only.
+  Checkpoint `bak_sec84_p6_trim_105_20260723_065021`.
+
+**Not carried as items:** 5.8's soft-equivalence hint (100/085-l) and
+machine-readable placeholder flags (084-b) — deployment-spec territory, noted
+for the atlas-level design doc.
+
+**§8.4 headline: the auditor's verdict — "well-architected … close to
+release-ready as a map" — with all three major findings landing either on
+already-recorded tensions (H5, atlas sequencing) or on the two genuine work
+items this audit was built to catch: the language-demands layer (P2) and the
+093 grain question (P1). No wiring was falsified; the §8.2 edge verdicts all
+survived pedagogical re-examination, with P3 the one edge family where mastery
+semantics and instructional order pull apart.**
+
+**§8.4 closeout (2026-07-23).** All six adjudication items resolved by Bill same
+day; one finding reopened and parked (the 110–112 presentation bundling — open
+question on LF-110). Final frame state: **75 KCs / 95 edges / 16 schemas**,
+components 63+2+2+2+2+1+1+1+1, 24 justified roots, four standalone diagnostics;
+validates all-4 offline + live. New KCs this pass: LF-113/114/115 (easy-instance
+rungs under the rate/initial-value extractors) and LF-116 (rate-as-constant-
+difference table bridge). The language-demands layer is complete for the first
+time: every KC except the 084-b placeholder tagged under the frame-relative
+rubric (casebook C28). **With §8.1–8.4 all passed, the frame has completed the
+Standards §8 stress-test suite and is release-ready per §8; state is UNPUBLISHED
+relative to the 2026-07-21 publish.**
